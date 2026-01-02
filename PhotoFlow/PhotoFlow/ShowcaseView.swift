@@ -4,6 +4,7 @@ struct ShowcaseView: View {
     @AppStorage("priceVisible") private var priceVisible: Bool = true
 
     @State private var isFullscreen = false
+    @State private var overlaysVisible = true
     @State private var categoryIndex = 0
     @State private var setIndex = 0
     @State private var photoIndex = 0
@@ -18,77 +19,57 @@ struct ShowcaseView: View {
 
         GeometryReader { proxy in
             let size = proxy.size
-            let isLandscape = size.width > size.height
             let thumbnailHeight: CGFloat = 102
-            let mainHeight = isLandscape
-                ? (isFullscreen ? size.height * 0.78 : size.height * 0.62)
-                : (isFullscreen ? size.height * 0.52 : size.height * 0.38)
-            let sideWidth = min(360, size.width * 0.36)
+            let mainHeight = isFullscreen ? size.height * 0.72 : size.height * 0.42
 
             ZStack {
                 Color(.systemGroupedBackground).ignoresSafeArea()
                 VStack(spacing: 16) {
-                    HStack(spacing: 14) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(category.name)
-                                .font(.system(size: 19, weight: .semibold, design: .rounded))
-                            Text(set.title)
-                                .font(.system(size: 13, weight: .medium, design: .rounded))
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Text("\(photoIndex + 1)/\(photos.count)")
-                            .font(.system(size: 12, weight: .semibold, design: .rounded))
-                            .padding(.horizontal, 10).padding(.vertical, 6)
-                            .background(.white.opacity(0.9), in: Capsule())
-                        Text(isFullscreen ? "Full" : "Compact")
-                            .font(.system(size: 12, weight: .semibold, design: .rounded))
-                            .padding(.horizontal, 10).padding(.vertical, 6)
-                            .background(.white, in: Capsule())
+                    if !isFullscreen {
+                        headerBar(category: category, set: set, photos: photos)
+                            .padding(.horizontal, 20)
                     }
+
+                    ZStack(alignment: .center) {
+                        if isFullscreen {
+                            RoundedRectangle(cornerRadius: 28)
+                                .fill(Color.black.opacity(0.55))
+                                .background(.ultraThinMaterial)
+                                .padding(.horizontal, 12)
+                        }
+
+                        mainPhotoView(photo: photos[photoIndex], height: mainHeight, isFullscreen: isFullscreen)
+                            .gesture(dragGesture())
+                            .gesture(pinchGesture())
+                            .onTapGesture {
+                                if isFullscreen { overlaysVisible.toggle() }
+                            }
+                    }
+                    .frame(maxWidth: .infinity)
                     .padding(.horizontal, 20)
-
-                    if isLandscape {
-                        HStack(alignment: .top, spacing: 18) {
-                            mainPhotoContainer(photo: photos[photoIndex], height: mainHeight, isFullscreen: isFullscreen)
-                                .padding(.leading, 20)
-
-                            VStack(alignment: .leading, spacing: 16) {
-                                showcaseCard(set: set)
-
-                                ScrollView(.vertical, showsIndicators: false) {
-                                    LazyVStack(spacing: 12) {
-                                        ForEach(Array(photos.enumerated()), id: \.offset) { idx, p in
-                                            thumbnailButton(photo: p, height: thumbnailHeight, isSelected: idx == photoIndex) {
-                                                photoIndex = idx
-                                            }
-                                        }
-                                    }
-                                    .padding(.vertical, 4)
-                                }
-                            }
-                            .frame(width: sideWidth)
-                            .padding(.trailing, 20)
+                    .overlay(alignment: .top) {
+                        if isFullscreen && overlaysVisible {
+                            headerBar(category: category, set: set, photos: photos)
+                                .padding(.horizontal, 12)
+                                .padding(.top, 12)
+                                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
                         }
-                    } else {
-                        VStack(alignment: .leading, spacing: 14) {
-                            mainPhotoContainer(photo: photos[photoIndex], height: mainHeight, isFullscreen: isFullscreen)
-                                .padding(.horizontal, 20)
-
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 12) {
-                                    ForEach(Array(photos.enumerated()), id: \.offset) { idx, p in
-                                        thumbnailButton(photo: p, height: thumbnailHeight, isSelected: idx == photoIndex) {
-                                            photoIndex = idx
-                                        }
-                                    }
-                                }
-                                .padding(.horizontal, 20)
-                            }
-
-                            showcaseCard(set: set)
-                                .padding(.horizontal, 20)
+                    }
+                    .overlay(alignment: .bottom) {
+                        if isFullscreen && overlaysVisible {
+                            filmstrip(photos: photos, height: thumbnailHeight)
+                                .padding(.horizontal, 12)
+                                .padding(.bottom, 12)
+                                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
                         }
+                    }
+
+                    if !isFullscreen {
+                        filmstrip(photos: photos, height: thumbnailHeight)
+                            .padding(.horizontal, 20)
+
+                        showcaseCard(set: set)
+                            .padding(.horizontal, 20)
                     }
 
                     Spacer(minLength: 0)
@@ -96,26 +77,50 @@ struct ShowcaseView: View {
                 .padding(.top, 10)
             }
         }
-        .gesture(dragGesture())
-        .gesture(pinchGesture())
         .navigationBarTitleDisplayMode(.inline)
     }
 
-    private func mainPhotoContainer(photo: ShowcaseDemoPhoto, height: CGFloat, isFullscreen: Bool) -> some View {
-        ZStack {
-            if isFullscreen {
-                Color.black.opacity(0.55)
-                    .background(.ultraThinMaterial)
-                    .clipShape(RoundedRectangle(cornerRadius: 26))
+    private func headerBar(category: ShowcaseDemoCategory, set: ShowcaseDemoSet, photos: [ShowcaseDemoPhoto]) -> some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(category.name)
+                    .font(.system(size: 18, weight: .semibold, design: .rounded))
+                Text(set.title)
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
             }
-            Placeholder(photo: photo, height: height, corner: isFullscreen ? 22 : 20)
-                .aspectRatio(photoAspect, contentMode: .fit)
-                .frame(maxWidth: .infinity, maxHeight: height, alignment: .center)
-                .padding(isFullscreen ? 18 : 0)
+            Spacer()
+            Text("\(photoIndex + 1)/\(photos.count)")
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .padding(.horizontal, 10).padding(.vertical, 6)
+                .background(.white.opacity(0.9), in: Capsule())
+            Text(isFullscreen ? "Full" : "Compact")
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .padding(.horizontal, 10).padding(.vertical, 6)
+                .background(.white, in: Capsule())
         }
-        .frame(maxWidth: .infinity)
-        .aspectRatio(photoAspect, contentMode: .fit)
-        .frame(height: height)
+        .padding(.vertical, 8)
+    }
+
+    private func mainPhotoView(photo: ShowcaseDemoPhoto, height: CGFloat, isFullscreen: Bool) -> some View {
+        Placeholder(photo: photo, height: height, corner: isFullscreen ? 22 : 20)
+            .aspectRatio(photoAspect, contentMode: .fit)
+            .frame(maxWidth: .infinity, maxHeight: height, alignment: .center)
+            .padding(isFullscreen ? 18 : 0)
+            .frame(height: height)
+    }
+
+    private func filmstrip(photos: [ShowcaseDemoPhoto], height: CGFloat) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 12) {
+                ForEach(Array(photos.enumerated()), id: \.offset) { idx, p in
+                    thumbnailButton(photo: p, height: height, isSelected: idx == photoIndex) {
+                        photoIndex = idx
+                    }
+                }
+            }
+            .padding(.vertical, 10)
+        }
     }
 
     private func thumbnailButton(photo: ShowcaseDemoPhoto, height: CGFloat, isSelected: Bool, action: @escaping () -> Void) -> some View {
