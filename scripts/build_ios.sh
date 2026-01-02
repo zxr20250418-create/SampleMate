@@ -25,7 +25,7 @@ print(schemes[0] if schemes else "")
 PY
 )"
 
-SCHEME="${SCHEME_IOS:-PhotoFlow}"
+SCHEME="${SCHEME_IOS:-SampleMate}"
 if [[ -z "${SCHEME}" ]]; then SCHEME="$DEFAULT_SCHEME"; fi
 if [[ -z "${SCHEME}" ]]; then
   echo "ERROR: Cannot determine iOS scheme. Set SCHEME_IOS env var."

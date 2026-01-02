@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXFileReference section */
-		AC0B077C2F034E64002F32BE /* PhotoFlow.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PhotoFlow.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AC0B077C2F034E64002F32BE /* SampleMate.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SampleMate.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -40,7 +40,7 @@
 		AC0B077D2F034E64002F32BE /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				AC0B077C2F034E64002F32BE /* PhotoFlow.app */,
+				AC0B077C2F034E64002F32BE /* SampleMate.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -48,9 +48,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		AC0B077B2F034E64002F32BE /* PhotoFlow */ = {
+		AC0B077B2F034E64002F32BE /* SampleMate */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = AC0B07872F034E66002F32BE /* Build configuration list for PBXNativeTarget "PhotoFlow" */;
+			buildConfigurationList = AC0B07872F034E66002F32BE /* Build configuration list for PBXNativeTarget "SampleMate" */;
 			buildPhases = (
 				AC0B07782F034E64002F32BE /* Sources */,
 				AC0B07792F034E64002F32BE /* Frameworks */,
@@ -63,11 +63,11 @@
 			fileSystemSynchronizedGroups = (
 				AC0B077E2F034E64002F32BE /* PhotoFlow */,
 			);
-			name = PhotoFlow;
+			name = SampleMate;
 			packageProductDependencies = (
 			);
-			productName = PhotoFlow;
-			productReference = AC0B077C2F034E64002F32BE /* PhotoFlow.app */;
+			productName = SampleMate;
+			productReference = AC0B077C2F034E64002F32BE /* SampleMate.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -99,7 +99,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				AC0B077B2F034E64002F32BE /* PhotoFlow */,
+				AC0B077B2F034E64002F32BE /* SampleMate */,
 			);
 		};
 /* End PBXProject section */
@@ -256,6 +256,7 @@
 				DEVELOPMENT_TEAM = KXMLG2TV28;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = SampleMate;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -267,7 +268,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.zhengxinrong.PhotoFlow;
+				PRODUCT_BUNDLE_IDENTIFIER = com.zhengxinrong.SampleMate;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -275,7 +276,7 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 2;
 			};
 			name = Debug;
 		};
@@ -289,6 +290,7 @@
 				DEVELOPMENT_TEAM = KXMLG2TV28;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = SampleMate;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -300,7 +302,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.zhengxinrong.PhotoFlow;
+				PRODUCT_BUNDLE_IDENTIFIER = com.zhengxinrong.SampleMate;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -308,7 +310,7 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 2;
 			};
 			name = Release;
 		};
@@ -324,7 +326,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		AC0B07872F034E66002F32BE /* Build configuration list for PBXNativeTarget "PhotoFlow" */ = {
+		AC0B07872F034E66002F32BE /* Build configuration list for PBXNativeTarget "SampleMate" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				AC0B07882F034E66002F32BE /* Debug */,
