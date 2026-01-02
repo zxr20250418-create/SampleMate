@@ -9,6 +9,7 @@ struct ShowcaseView: View {
     @State private var photoIndex = 0
 
     private let catalog = ShowcaseDemoCatalog.sample
+    private let photoAspect: CGFloat = 2.0 / 3.0
 
     var body: some View {
         let category = catalog.categories[categoryIndex]
@@ -18,7 +19,7 @@ struct ShowcaseView: View {
         GeometryReader { proxy in
             let size = proxy.size
             let isLandscape = size.width > size.height
-            let thumbnailSize: CGFloat = 90
+            let thumbnailHeight: CGFloat = 102
             let mainHeight = isLandscape
                 ? (isFullscreen ? size.height * 0.78 : size.height * 0.62)
                 : (isFullscreen ? size.height * 0.52 : size.height * 0.38)
@@ -49,8 +50,7 @@ struct ShowcaseView: View {
 
                     if isLandscape {
                         HStack(alignment: .top, spacing: 18) {
-                            Placeholder(photo: photos[photoIndex], height: mainHeight, corner: 22)
-                                .frame(maxWidth: .infinity)
+                            mainPhotoContainer(photo: photos[photoIndex], height: mainHeight, isFullscreen: isFullscreen)
                                 .padding(.leading, 20)
 
                             VStack(alignment: .leading, spacing: 16) {
@@ -59,7 +59,7 @@ struct ShowcaseView: View {
                                 ScrollView(.vertical, showsIndicators: false) {
                                     LazyVStack(spacing: 12) {
                                         ForEach(Array(photos.enumerated()), id: \.offset) { idx, p in
-                                            thumbnailButton(photo: p, size: thumbnailSize, isSelected: idx == photoIndex) {
+                                            thumbnailButton(photo: p, height: thumbnailHeight, isSelected: idx == photoIndex) {
                                                 photoIndex = idx
                                             }
                                         }
@@ -72,13 +72,13 @@ struct ShowcaseView: View {
                         }
                     } else {
                         VStack(alignment: .leading, spacing: 14) {
-                            Placeholder(photo: photos[photoIndex], height: mainHeight, corner: 20)
+                            mainPhotoContainer(photo: photos[photoIndex], height: mainHeight, isFullscreen: isFullscreen)
                                 .padding(.horizontal, 20)
 
                             ScrollView(.horizontal, showsIndicators: false) {
                                 HStack(spacing: 12) {
                                     ForEach(Array(photos.enumerated()), id: \.offset) { idx, p in
-                                        thumbnailButton(photo: p, size: thumbnailSize, isSelected: idx == photoIndex) {
+                                        thumbnailButton(photo: p, height: thumbnailHeight, isSelected: idx == photoIndex) {
                                             photoIndex = idx
                                         }
                                     }
@@ -101,10 +101,28 @@ struct ShowcaseView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
-    private func thumbnailButton(photo: ShowcaseDemoPhoto, size: CGFloat, isSelected: Bool, action: @escaping () -> Void) -> some View {
+    private func mainPhotoContainer(photo: ShowcaseDemoPhoto, height: CGFloat, isFullscreen: Bool) -> some View {
+        ZStack {
+            if isFullscreen {
+                Color.black.opacity(0.55)
+                    .background(.ultraThinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 26))
+            }
+            Placeholder(photo: photo, height: height, corner: isFullscreen ? 22 : 20)
+                .aspectRatio(photoAspect, contentMode: .fit)
+                .frame(maxWidth: .infinity, maxHeight: height, alignment: .center)
+                .padding(isFullscreen ? 18 : 0)
+        }
+        .frame(maxWidth: .infinity)
+        .aspectRatio(photoAspect, contentMode: .fit)
+        .frame(height: height)
+    }
+
+    private func thumbnailButton(photo: ShowcaseDemoPhoto, height: CGFloat, isSelected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Placeholder(photo: photo, height: size, corner: 14)
-                .frame(width: size, height: size)
+            Placeholder(photo: photo, height: height, corner: 14)
+                .aspectRatio(photoAspect, contentMode: .fit)
+                .frame(height: height)
                 .overlay(RoundedRectangle(cornerRadius: 14)
                     .stroke(isSelected ? Color.primary.opacity(0.9) : Color.black.opacity(0.08), lineWidth: isSelected ? 3 : 1))
         }
