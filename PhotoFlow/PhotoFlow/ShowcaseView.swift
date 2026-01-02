@@ -3,12 +3,18 @@ import SwiftUI
 struct ShowcaseView: View {
     @AppStorage("priceVisible") private var priceVisible: Bool = true
     @AppStorage("compactTextVisible") private var compactTextVisible: Bool = true
+    @AppStorage("slideshowEnabled") private var slideshowEnabled: Bool = false
+    @AppStorage("slideshowIntervalSeconds") private var slideshowIntervalSeconds: Int = 5
 
     @State private var isFullscreen = false
     @State private var overlaysVisible = true
     @State private var categoryIndex = 0
     @State private var setIndex = 0
     @State private var photoIndex = 0
+    @State private var isSlideshowPlaying = false
+    @State private var slideshowTimer: Timer?
+
+    @Environment(\.scenePhase) private var scenePhase
 
     private let catalog = ShowcaseDemoCatalog.sample
     private let photoAspect: CGFloat = 2.0 / 3.0
@@ -81,6 +87,22 @@ struct ShowcaseView: View {
             }
         }
         .navigationBarTitleDisplayMode(.inline)
+        .onChange(of: isFullscreen) { value in
+            if value {
+                if slideshowEnabled { startSlideshow(photosCount: photos.count) }
+            } else {
+                pauseSlideshow()
+            }
+        }
+        .onChange(of: slideshowIntervalSeconds) { _ in
+            if isSlideshowPlaying { startSlideshow(photosCount: photos.count) }
+        }
+        .onChange(of: slideshowEnabled) { value in
+            if !value { pauseSlideshow() }
+        }
+        .onChange(of: scenePhase) { phase in
+            if phase != .active { pauseSlideshow() }
+        }
     }
 
     private func headerBar(category: ShowcaseDemoCategory, set: ShowcaseDemoSet, photos: [ShowcaseDemoPhoto]) -> some View {
@@ -93,6 +115,18 @@ struct ShowcaseView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
+            if isFullscreen {
+                Button {
+                    if isSlideshowPlaying { pauseSlideshow() }
+                    else { startSlideshow(photosCount: photos.count) }
+                } label: {
+                    Text(isSlideshowPlaying ? "Pause" : "Play")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .padding(.horizontal, 10).padding(.vertical, 6)
+                        .background(.white.opacity(0.9), in: Capsule())
+                }
+                .buttonStyle(.plain)
+            }
             Text("\(photoIndex + 1)/\(photos.count)")
                 .font(.system(size: 12, weight: .semibold, design: .rounded))
                 .padding(.horizontal, 10).padding(.vertical, 6)
@@ -118,6 +152,7 @@ struct ShowcaseView: View {
             HStack(spacing: 12) {
                 ForEach(Array(photos.enumerated()), id: \.offset) { idx, p in
                     thumbnailButton(photo: p, height: height, isSelected: idx == photoIndex) {
+                        pauseSlideshow()
                         photoIndex = idx
                     }
                 }
@@ -131,6 +166,7 @@ struct ShowcaseView: View {
         return HStack(spacing: 12) {
             ForEach(indices, id: \.self) { idx in
                 thumbnailButton(photo: photos[idx], height: height, isSelected: idx == photoIndex) {
+                    pauseSlideshow()
                     photoIndex = idx
                 }
             }
@@ -178,18 +214,40 @@ struct ShowcaseView: View {
         DragGesture(minimumDistance: 18).onEnded { v in
             let dx = v.translation.width, dy = v.translation.height
             if abs(dx) > abs(dy) {
-                if dx <= -60 { nextSet(1) } else if dx >= 60 { nextSet(-1) }
+                if dx <= -60 { pauseSlideshow(); nextSet(1) }
+                else if dx >= 60 { pauseSlideshow(); nextSet(-1) }
             } else {
-                if dy <= -60 { nextCategory(1) } else if dy >= 60 { nextCategory(-1) }
+                if dy <= -60 { pauseSlideshow(); nextCategory(1) }
+                else if dy >= 60 { pauseSlideshow(); nextCategory(-1) }
             }
         }
     }
 
     private func pinchGesture() -> some Gesture {
         MagnificationGesture().onEnded { value in
-            if value > 1.08 { isFullscreen = true }
-            else if value < 0.92 { isFullscreen = false }
+            if value > 1.08 { pauseSlideshow(); isFullscreen = true }
+            else if value < 0.92 { pauseSlideshow(); isFullscreen = false }
         }
+    }
+
+    private func startSlideshow(photosCount: Int) {
+        guard photosCount > 0 else { return }
+        pauseSlideshow()
+        isSlideshowPlaying = true
+        slideshowTimer = Timer.scheduledTimer(withTimeInterval: TimeInterval(slideshowIntervalSeconds), repeats: true) { _ in
+            advancePhoto(photosCount: photosCount)
+        }
+    }
+
+    private func pauseSlideshow() {
+        isSlideshowPlaying = false
+        slideshowTimer?.invalidate()
+        slideshowTimer = nil
+    }
+
+    private func advancePhoto(photosCount: Int) {
+        guard photosCount > 0 else { return }
+        photoIndex = (photoIndex + 1) % photosCount
     }
 
     private func nextCategory(_ d: Int) {
