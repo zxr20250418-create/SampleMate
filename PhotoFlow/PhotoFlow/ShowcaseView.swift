@@ -15,67 +15,120 @@ struct ShowcaseView: View {
         let set = category.sets[setIndex]
         let photos = set.photos
 
-        ZStack {
-            Color(.systemGroupedBackground).ignoresSafeArea()
-            VStack(spacing: 14) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(category.name).font(.system(size: 18, weight: .semibold, design: .rounded))
-                        Text(set.title).font(.system(size: 13, weight: .medium, design: .rounded)).foregroundStyle(.secondary)
+        GeometryReader { proxy in
+            let size = proxy.size
+            let isLandscape = size.width > size.height
+            let thumbnailSize: CGFloat = 90
+            let mainHeight = isLandscape
+                ? (isFullscreen ? size.height * 0.78 : size.height * 0.62)
+                : (isFullscreen ? size.height * 0.52 : size.height * 0.38)
+            let sideWidth = min(360, size.width * 0.36)
+
+            ZStack {
+                Color(.systemGroupedBackground).ignoresSafeArea()
+                VStack(spacing: 16) {
+                    HStack(spacing: 14) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(category.name)
+                                .font(.system(size: 19, weight: .semibold, design: .rounded))
+                            Text(set.title)
+                                .font(.system(size: 13, weight: .medium, design: .rounded))
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Text("\(photoIndex + 1)/\(photos.count)")
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .padding(.horizontal, 10).padding(.vertical, 6)
+                            .background(.white.opacity(0.9), in: Capsule())
+                        Text(isFullscreen ? "Full" : "Compact")
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .padding(.horizontal, 10).padding(.vertical, 6)
+                            .background(.white, in: Capsule())
                     }
-                    Spacer()
-                    Text(isFullscreen ? "Full" : "Compact")
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
-                        .padding(.horizontal, 10).padding(.vertical, 6)
-                        .background(.white, in: Capsule())
-                }
-                .padding(.horizontal, 20)
+                    .padding(.horizontal, 20)
 
-                if isFullscreen {
-                    Placeholder(photo: photos[photoIndex], height: 520, corner: 22).padding(.horizontal, 20)
-                } else {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Placeholder(photo: photos[photoIndex], height: 320, corner: 18).padding(.horizontal, 20)
+                    if isLandscape {
+                        HStack(alignment: .top, spacing: 18) {
+                            Placeholder(photo: photos[photoIndex], height: mainHeight, corner: 22)
+                                .frame(maxWidth: .infinity)
+                                .padding(.leading, 20)
 
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 10) {
-                                ForEach(Array(photos.enumerated()), id: \.offset) { idx, p in
-                                    Button { photoIndex = idx } label: {
-                                        Placeholder(photo: p, height: 86, corner: 12)
-                                            .overlay(RoundedRectangle(cornerRadius: 12)
-                                                .stroke(idx == photoIndex ? Color.primary.opacity(0.75) : .clear, lineWidth: 2))
+                            VStack(alignment: .leading, spacing: 16) {
+                                showcaseCard(set: set)
+
+                                ScrollView(.vertical, showsIndicators: false) {
+                                    LazyVStack(spacing: 12) {
+                                        ForEach(Array(photos.enumerated()), id: \.offset) { idx, p in
+                                            thumbnailButton(photo: p, size: thumbnailSize, isSelected: idx == photoIndex) {
+                                                photoIndex = idx
+                                            }
+                                        }
                                     }
-                                    .buttonStyle(.plain)
+                                    .padding(.vertical, 4)
                                 }
                             }
-                            .padding(.horizontal, 20)
+                            .frame(width: sideWidth)
+                            .padding(.trailing, 20)
                         }
+                    } else {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Placeholder(photo: photos[photoIndex], height: mainHeight, corner: 20)
+                                .padding(.horizontal, 20)
 
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Showcase").font(.system(size: 18, weight: .semibold, design: .rounded))
-                            Text(set.note).font(.system(size: 14, weight: .medium, design: .rounded)).foregroundStyle(.secondary)
-
-                            if priceVisible {
-                                HStack(spacing: 10) {
-                                    Text("Package").foregroundStyle(.secondary)
-                                    Text(set.priceText).fontWeight(.bold)
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 12) {
+                                    ForEach(Array(photos.enumerated()), id: \.offset) { idx, p in
+                                        thumbnailButton(photo: p, size: thumbnailSize, isSelected: idx == photoIndex) {
+                                            photoIndex = idx
+                                        }
+                                    }
                                 }
-                                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                .padding(.horizontal, 20)
                             }
+
+                            showcaseCard(set: set)
+                                .padding(.horizontal, 20)
                         }
-                        .padding(16)
-                        .background(.white, in: RoundedRectangle(cornerRadius: 16))
-                        .padding(.horizontal, 20)
                     }
-                }
 
-                Spacer(minLength: 0)
+                    Spacer(minLength: 0)
+                }
+                .padding(.top, 10)
             }
-            .padding(.top, 10)
         }
         .gesture(dragGesture())
         .gesture(pinchGesture())
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func thumbnailButton(photo: ShowcaseDemoPhoto, size: CGFloat, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Placeholder(photo: photo, height: size, corner: 14)
+                .frame(width: size, height: size)
+                .overlay(RoundedRectangle(cornerRadius: 14)
+                    .stroke(isSelected ? Color.primary.opacity(0.9) : Color.black.opacity(0.08), lineWidth: isSelected ? 3 : 1))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func showcaseCard(set: ShowcaseDemoSet) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Showcase")
+                .font(.system(size: 18, weight: .semibold, design: .rounded))
+            Text(set.note)
+                .font(.system(size: 14, weight: .medium, design: .rounded))
+                .foregroundStyle(.secondary)
+
+            if priceVisible {
+                HStack(spacing: 10) {
+                    Text("Package").foregroundStyle(.secondary)
+                    Text(set.priceText).fontWeight(.bold)
+                }
+                .font(.system(size: 14, weight: .semibold, design: .rounded))
+            }
+        }
+        .padding(16)
+        .background(.white, in: RoundedRectangle(cornerRadius: 16))
     }
 
     private func dragGesture() -> some Gesture {
