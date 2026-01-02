@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ShowcaseView: View {
     @AppStorage("priceVisible") private var priceVisible: Bool = true
+    @AppStorage("compactTextVisible") private var compactTextVisible: Bool = true
 
     @State private var isFullscreen = false
     @State private var overlaysVisible = true
@@ -65,11 +66,13 @@ struct ShowcaseView: View {
                     }
 
                     if !isFullscreen {
-                        filmstrip(photos: photos, height: thumbnailHeight)
+                        compactThumbnailRow(photos: photos, height: thumbnailHeight)
                             .padding(.horizontal, 20)
 
-                        showcaseCard(set: set)
-                            .padding(.horizontal, 20)
+                        if compactTextVisible {
+                            showcaseCard(set: set)
+                                .padding(.horizontal, 20)
+                        }
                     }
 
                     Spacer(minLength: 0)
@@ -121,6 +124,23 @@ struct ShowcaseView: View {
             }
             .padding(.vertical, 10)
         }
+    }
+
+    private func compactThumbnailRow(photos: [ShowcaseDemoPhoto], height: CGFloat) -> some View {
+        let indices = compactThumbnailIndices(count: photos.count)
+        return HStack(spacing: 12) {
+            ForEach(indices, id: \.self) { idx in
+                thumbnailButton(photo: photos[idx], height: height, isSelected: idx == photoIndex) {
+                    photoIndex = idx
+                }
+            }
+        }
+    }
+
+    private func compactThumbnailIndices(count: Int) -> [Int] {
+        guard count > 0 else { return [] }
+        let maxCount = min(3, count)
+        return (0..<maxCount).map { (photoIndex + $0) % count }
     }
 
     private func thumbnailButton(photo: ShowcaseDemoPhoto, height: CGFloat, isSelected: Bool, action: @escaping () -> Void) -> some View {
