@@ -28,3 +28,6 @@ fastlane/test_output
 
 # SPM build artifacts
 .build/
+
+# Generated evidence outputs
+artifacts/
