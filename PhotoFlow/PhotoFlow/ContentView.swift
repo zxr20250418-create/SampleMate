@@ -8,6 +8,9 @@
 import SwiftUI
 
 struct ContentView: View {
+    @State private var showShowcase: Bool = false
+    @State private var showSettings: Bool = false
+
     private let highlights: [Highlight] = [
         Highlight(title: "Golden Hour Walk", subtitle: "24 shots · 6 picks", tone: .warm),
         Highlight(title: "Coffee Shop", subtitle: "12 shots · 3 picks", tone: .cool),
@@ -41,6 +44,12 @@ struct ContentView: View {
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(isPresented: $showShowcase) {
+                ShowcaseView()
+            }
+            .sheet(isPresented: $showSettings) {
+                PR1SettingsView()
+            }
         }
     }
 
@@ -52,9 +61,12 @@ struct ContentView: View {
                 .font(.system(size: 18, weight: .medium, design: .rounded))
                 .foregroundStyle(.secondary)
             HStack(spacing: 12) {
-                ActionChip(title: "New Import", systemImage: "arrow.down.circle")
-                ActionChip(title: "Start Review", systemImage: "checkmark.seal")
-                ActionChip(title: "Export", systemImage: "square.and.arrow.up")
+                ActionChip(title: "Showcase", systemImage: "play.rectangle") {
+                    showShowcase = true
+                }
+                ActionChip(title: "Settings", systemImage: "gearshape") {
+                    showSettings = true
+                }
             }
         }
     }
@@ -176,12 +188,22 @@ private struct HighlightCard: View {
 private struct ActionChip: View {
     let title: String
     let systemImage: String
+    var action: (() -> Void)? = nil
 
     var body: some View {
-        Label(title, systemImage: systemImage)
-            .font(.system(size: 14, weight: .semibold, design: .rounded))
-            .padding(.vertical, 8)
-            .padding(.horizontal, 12)
-            .background(.white.opacity(0.95), in: Capsule())
+        Group {
+            if let action {
+                Button(action: action) {
+                    Label(title, systemImage: systemImage)
+                }
+                .buttonStyle(.plain)
+            } else {
+                Label(title, systemImage: systemImage)
+            }
+        }
+        .font(.system(size: 14, weight: .semibold, design: .rounded))
+        .padding(.vertical, 8)
+        .padding(.horizontal, 12)
+        .background(.white.opacity(0.95), in: Capsule())
     }
 }
