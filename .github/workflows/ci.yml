@@ -23,11 +23,6 @@ jobs:
           echo "Building iOS app..."
           bash scripts/build_ios.sh
 
-      - name: Build watchOS app
-        run: |
-          echo "Building watchOS app..."
-          bash scripts/build_watch.sh
-
       - name: Verify version consistency
         run: |
           echo "Checking version consistency..."

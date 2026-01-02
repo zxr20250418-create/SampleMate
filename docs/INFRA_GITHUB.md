@@ -1,6 +1,7 @@
 We pin required checks with `gh api` to avoid UI drift and to keep branch protection reproducible across machines. This makes the gate auditable and guarantees the same required context string for CI.
 
 Standard flow: create `work/*`, open PR, merge only after CI passes; if CI needs a rerun, use `bash scripts/retrigger_ci.sh` which triggers workflow_dispatch and falls back to an empty commit push when needed. Keep changes small and scoped so main stays releasable.
+Repo is iPad-only; watch is never built or tested, and CI excludes watch targets.
 
 Post-merge Closeout
 - Use after PR merge and after confirming the PR is closed.
