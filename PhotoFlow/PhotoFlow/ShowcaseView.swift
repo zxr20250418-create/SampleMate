@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct ShowcaseView: View {
+    @ObservedObject var store: LocalLibraryStore
+
     @AppStorage("priceVisible") private var priceVisible: Bool = true
     @AppStorage("compactTextVisible") private var compactTextVisible: Bool = true
     @AppStorage("slideshowEnabled") private var slideshowEnabled: Bool = false
@@ -19,10 +21,28 @@ struct ShowcaseView: View {
     private let catalog = ShowcaseDemoCatalog.sample
     private let photoAspect: CGFloat = 2.0 / 3.0
 
+    private struct DisplayPhoto: Identifiable {
+        let id: String
+        let source: PhotoSource
+    }
+
+    private enum PhotoSource {
+        case local(LocalLibraryStore.Item)
+        case demo(ShowcaseDemoPhoto)
+    }
+
     var body: some View {
-        let category = catalog.categories[categoryIndex]
-        let set = category.sets[setIndex]
-        let photos = set.photos
+        let usesLocal = !store.items.isEmpty
+        let category = catalog.categories[safe: categoryIndex]
+        let set = category?.sets[safe: setIndex]
+        let demoPhotos = set?.photos ?? []
+        let displayPhotos: [DisplayPhoto] = usesLocal
+            ? store.items.map { DisplayPhoto(id: $0.id, source: .local($0)) }
+            : demoPhotos.enumerated().map { DisplayPhoto(id: "demo-\($0.offset)", source: .demo($0.element)) }
+        let categoryName = usesLocal ? "Local Library" : (category?.name ?? "Showcase")
+        let setTitle = usesLocal ? "Imported Photos" : (set?.title ?? "Set")
+        let setNote = usesLocal ? "From your Photos library." : (set?.note ?? "")
+        let priceText = usesLocal ? "" : (set?.priceText ?? "")
 
         GeometryReader { proxy in
             let size = proxy.size
@@ -33,7 +53,7 @@ struct ShowcaseView: View {
                 Color(.systemGroupedBackground).ignoresSafeArea()
                 VStack(spacing: 16) {
                     if !isFullscreen {
-                        headerBar(category: category, set: set, photos: photos)
+                        headerBar(categoryName: categoryName, setTitle: setTitle, photosCount: displayPhotos.count)
                             .padding(.horizontal, 20)
                     }
 
@@ -45,7 +65,11 @@ struct ShowcaseView: View {
                                 .padding(.horizontal, 12)
                         }
 
-                        mainPhotoView(photo: photos[photoIndex], height: mainHeight, isFullscreen: isFullscreen)
+                        if let photo = displayPhotos[safe: photoIndex] {
+                            mainPhotoView(photo: photo, height: mainHeight, isFullscreen: isFullscreen)
+                        } else {
+                            fallbackMainPhoto(height: mainHeight, isFullscreen: isFullscreen)
+                        }
                             .gesture(dragGesture())
                             .gesture(pinchGesture())
                             .onTapGesture {
@@ -56,7 +80,7 @@ struct ShowcaseView: View {
                     .padding(.horizontal, 20)
                     .overlay(alignment: .top) {
                         if isFullscreen && overlaysVisible {
-                            headerBar(category: category, set: set, photos: photos)
+                            headerBar(categoryName: categoryName, setTitle: setTitle, photosCount: displayPhotos.count)
                                 .padding(.horizontal, 12)
                                 .padding(.top, 12)
                                 .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
@@ -64,7 +88,7 @@ struct ShowcaseView: View {
                     }
                     .overlay(alignment: .bottom) {
                         if isFullscreen && overlaysVisible {
-                            filmstrip(photos: photos, height: thumbnailHeight)
+                            filmstrip(photos: displayPhotos, height: thumbnailHeight)
                                 .padding(.horizontal, 12)
                                 .padding(.bottom, 12)
                                 .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
@@ -72,11 +96,11 @@ struct ShowcaseView: View {
                     }
 
                     if !isFullscreen {
-                        compactThumbnailRow(photos: photos, height: thumbnailHeight)
+                        compactThumbnailRow(photos: displayPhotos, height: thumbnailHeight)
                             .padding(.horizontal, 20)
 
                         if compactTextVisible {
-                            showcaseCard(set: set)
+                            showcaseCard(note: setNote, priceText: priceText)
                                 .padding(.horizontal, 20)
                         }
                     }
@@ -89,13 +113,13 @@ struct ShowcaseView: View {
         .navigationBarTitleDisplayMode(.inline)
         .onChange(of: isFullscreen) { value in
             if value {
-                if slideshowEnabled { startSlideshow(photosCount: photos.count) }
+                if slideshowEnabled { startSlideshow(photosCount: displayPhotos.count) }
             } else {
                 pauseSlideshow()
             }
         }
         .onChange(of: slideshowIntervalSeconds) { _ in
-            if isSlideshowPlaying { startSlideshow(photosCount: photos.count) }
+            if isSlideshowPlaying { startSlideshow(photosCount: displayPhotos.count) }
         }
         .onChange(of: slideshowEnabled) { value in
             if !value { pauseSlideshow() }
@@ -103,14 +127,17 @@ struct ShowcaseView: View {
         .onChange(of: scenePhase) { phase in
             if phase != .active { pauseSlideshow() }
         }
+        .onChange(of: store.items.count) { _ in
+            if photoIndex >= displayPhotos.count { photoIndex = 0 }
+        }
     }
 
-    private func headerBar(category: ShowcaseDemoCategory, set: ShowcaseDemoSet, photos: [ShowcaseDemoPhoto]) -> some View {
+    private func headerBar(categoryName: String, setTitle: String, photosCount: Int) -> some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(category.name)
+                Text(categoryName)
                     .font(.system(size: 18, weight: .semibold, design: .rounded))
-                Text(set.title)
+                Text(setTitle)
                     .font(.system(size: 13, weight: .medium, design: .rounded))
                     .foregroundStyle(.secondary)
             }
@@ -118,7 +145,7 @@ struct ShowcaseView: View {
             if isFullscreen {
                 Button {
                     if isSlideshowPlaying { pauseSlideshow() }
-                    else { startSlideshow(photosCount: photos.count) }
+                    else { startSlideshow(photosCount: photosCount) }
                 } label: {
                     Text(isSlideshowPlaying ? "showcase.pause" : "showcase.play")
                         .font(.system(size: 12, weight: .semibold, design: .rounded))
@@ -127,7 +154,7 @@ struct ShowcaseView: View {
                 }
                 .buttonStyle(.plain)
             }
-            Text("\(photoIndex + 1)/\(photos.count)")
+            Text("\(min(photoIndex + 1, photosCount))/\(max(photosCount, 1))")
                 .font(.system(size: 12, weight: .semibold, design: .rounded))
                 .padding(.horizontal, 10).padding(.vertical, 6)
                 .background(.white.opacity(0.9), in: Capsule())
@@ -139,15 +166,24 @@ struct ShowcaseView: View {
         .padding(.vertical, 8)
     }
 
-    private func mainPhotoView(photo: ShowcaseDemoPhoto, height: CGFloat, isFullscreen: Bool) -> some View {
-        Placeholder(photo: photo, height: height, corner: isFullscreen ? 22 : 20)
+    private func mainPhotoView(photo: DisplayPhoto, height: CGFloat, isFullscreen: Bool) -> some View {
+        photoView(photo: photo, height: height, corner: isFullscreen ? 22 : 20, useThumbnail: false)
             .aspectRatio(photoAspect, contentMode: .fit)
             .frame(maxWidth: .infinity, maxHeight: height, alignment: .center)
             .padding(isFullscreen ? 18 : 0)
             .frame(height: height)
     }
 
-    private func filmstrip(photos: [ShowcaseDemoPhoto], height: CGFloat) -> some View {
+    private func fallbackMainPhoto(height: CGFloat, isFullscreen: Bool) -> some View {
+        RoundedRectangle(cornerRadius: isFullscreen ? 22 : 20)
+            .fill(Color.gray.opacity(0.16))
+            .aspectRatio(photoAspect, contentMode: .fit)
+            .frame(maxWidth: .infinity, maxHeight: height, alignment: .center)
+            .padding(isFullscreen ? 18 : 0)
+            .frame(height: height)
+    }
+
+    private func filmstrip(photos: [DisplayPhoto], height: CGFloat) -> some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 12) {
                 ForEach(Array(photos.enumerated()), id: \.offset) { idx, p in
@@ -161,13 +197,15 @@ struct ShowcaseView: View {
         }
     }
 
-    private func compactThumbnailRow(photos: [ShowcaseDemoPhoto], height: CGFloat) -> some View {
+    private func compactThumbnailRow(photos: [DisplayPhoto], height: CGFloat) -> some View {
         let indices = compactThumbnailIndices(count: photos.count)
         return HStack(spacing: 12) {
             ForEach(indices, id: \.self) { idx in
-                thumbnailButton(photo: photos[idx], height: height, isSelected: idx == photoIndex) {
-                    pauseSlideshow()
-                    photoIndex = idx
+                if let photo = photos[safe: idx] {
+                    thumbnailButton(photo: photo, height: height, isSelected: idx == photoIndex) {
+                        pauseSlideshow()
+                        photoIndex = idx
+                    }
                 }
             }
         }
@@ -179,9 +217,9 @@ struct ShowcaseView: View {
         return (0..<maxCount).map { (photoIndex + $0) % count }
     }
 
-    private func thumbnailButton(photo: ShowcaseDemoPhoto, height: CGFloat, isSelected: Bool, action: @escaping () -> Void) -> some View {
+    private func thumbnailButton(photo: DisplayPhoto, height: CGFloat, isSelected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Placeholder(photo: photo, height: height, corner: 14)
+            photoView(photo: photo, height: height, corner: 14, useThumbnail: true)
                 .aspectRatio(photoAspect, contentMode: .fit)
                 .frame(height: height)
                 .overlay(RoundedRectangle(cornerRadius: 14)
@@ -190,18 +228,37 @@ struct ShowcaseView: View {
         .buttonStyle(.plain)
     }
 
-    private func showcaseCard(set: ShowcaseDemoSet) -> some View {
+    @ViewBuilder
+    private func photoView(photo: DisplayPhoto, height: CGFloat, corner: CGFloat, useThumbnail: Bool) -> some View {
+        switch photo.source {
+        case .local(let item):
+            let image = useThumbnail ? store.thumbnail(at: item.thumbPath) : store.image(at: item.photoPath)
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .clipShape(RoundedRectangle(cornerRadius: corner))
+            } else {
+                RoundedRectangle(cornerRadius: corner)
+                    .fill(Color.gray.opacity(0.16))
+                    .frame(height: height)
+            }
+        case .demo(let demo):
+            Placeholder(photo: demo, height: height, corner: corner)
+        }
+    }
+
+    private func showcaseCard(note: String, priceText: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Showcase")
                 .font(.system(size: 18, weight: .semibold, design: .rounded))
-            Text(set.note)
+            Text(note)
                 .font(.system(size: 14, weight: .medium, design: .rounded))
                 .foregroundStyle(.secondary)
 
-            if priceVisible {
+            if priceVisible && !priceText.isEmpty {
                 HStack(spacing: 10) {
                     Text("Package").foregroundStyle(.secondary)
-                    Text(set.priceText).fontWeight(.bold)
+                    Text(priceText).fontWeight(.bold)
                 }
                 .font(.system(size: 14, weight: .semibold, design: .rounded))
             }
@@ -251,6 +308,7 @@ struct ShowcaseView: View {
     }
 
     private func nextCategory(_ d: Int) {
+        if !store.items.isEmpty { return }
         let c = catalog.categories.count
         categoryIndex = (categoryIndex + d + c) % c
         setIndex = 0
@@ -258,9 +316,17 @@ struct ShowcaseView: View {
     }
 
     private func nextSet(_ d: Int) {
+        if !store.items.isEmpty { return }
         let s = catalog.categories[categoryIndex].sets.count
         setIndex = (setIndex + d + s) % s
         photoIndex = 0
+    }
+}
+
+private extension Array {
+    subscript(safe index: Int) -> Element? {
+        guard indices.contains(index) else { return nil }
+        return self[index]
     }
 }
 

@@ -10,6 +10,9 @@ import SwiftUI
 struct ContentView: View {
     @State private var showShowcase: Bool = false
     @State private var showSettings: Bool = false
+    @State private var showLibrary: Bool = false
+
+    @StateObject private var libraryStore = LocalLibraryStore()
 
     private let highlights: [Highlight] = [
         Highlight(title: "Golden Hour Walk", subtitle: "24 shots · 6 picks", tone: .warm),
@@ -45,10 +48,13 @@ struct ContentView: View {
             }
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(isPresented: $showShowcase) {
-                ShowcaseView()
+                ShowcaseView(store: libraryStore)
             }
             .sheet(isPresented: $showSettings) {
                 PR1SettingsView()
+            }
+            .sheet(isPresented: $showLibrary) {
+                LibraryView(store: libraryStore)
             }
         }
     }
@@ -63,6 +69,9 @@ struct ContentView: View {
             HStack(spacing: 12) {
                 ActionChip(title: "home.action.showcase", systemImage: "play.rectangle") {
                     showShowcase = true
+                }
+                ActionChip(title: "Library", systemImage: "photo.on.rectangle.angled") {
+                    showLibrary = true
                 }
                 ActionChip(title: "home.action.settings", systemImage: "gearshape") {
                     showSettings = true
