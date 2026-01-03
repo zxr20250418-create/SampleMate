@@ -1,91 +1,155 @@
 {
-  "sourceLanguage": "en",
-  "strings": {
-    "home.action.showcase": {
-      "comment": "",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Showcase"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "样片展示"
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%lld/%lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld/%2$lld"
           }
         }
       }
     },
-    "home.action.settings": {
-      "comment": "",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Settings"
+    "%llds" : {
+
+    },
+    "Coffee Shop" : {
+
+    },
+    "Compact" : {
+
+    },
+    "Enable slideshow" : {
+
+    },
+    "Full" : {
+
+    },
+    "Golden Hour Walk" : {
+
+    },
+    "home.action.settings" : {
+      "comment" : "",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Settings"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "设置"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设置"
           }
         }
       }
     },
-    "showcase.play": {
-      "comment": "",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Play"
+    "home.action.showcase" : {
+      "comment" : "",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Showcase"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "播放"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "样片展示"
           }
         }
       }
     },
-    "showcase.pause": {
-      "comment": "",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pause"
+    "iPad-first review space for fast photo decisions." : {
+
+    },
+    "Library, Stats, and Showcase dashboards coming soon." : {
+
+    },
+    "Next up" : {
+
+    },
+    "Package" : {
+
+    },
+    "SampleMate" : {
+
+    },
+    "settings.title" : {
+      "comment" : "",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Settings"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "暂停"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设置"
           }
         }
       }
     },
-    "settings.title": {
-      "comment": "",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Settings"
+    "Show compact text" : {
+
+    },
+    "Show price row" : {
+
+    },
+    "Showcase" : {
+
+    },
+    "showcase.pause" : {
+      "comment" : "",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pause"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "设置"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂停"
           }
         }
       }
+    },
+    "showcase.play" : {
+      "comment" : "",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "播放"
+          }
+        }
+      }
+    },
+    "Slideshow interval" : {
+
+    },
+    "Street Notes" : {
+
+    },
+    "Studio Test" : {
+
+    },
+    "Today’s Highlights" : {
+
     }
   },
-  "version": "1.1"
+  "version" : "1.1"
 }
