@@ -1,7 +1,155 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "%lld/%lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld/%2$lld"
+          }
+        }
+      }
+    },
+    "%llds" : {
 
+    },
+    "Coffee Shop" : {
+
+    },
+    "Compact" : {
+
+    },
+    "Enable slideshow" : {
+
+    },
+    "Full" : {
+
+    },
+    "Golden Hour Walk" : {
+
+    },
+    "home.action.settings" : {
+      "comment" : "",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Settings"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设置"
+          }
+        }
+      }
+    },
+    "home.action.showcase" : {
+      "comment" : "",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Showcase"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "样片展示"
+          }
+        }
+      }
+    },
+    "iPad-first review space for fast photo decisions." : {
+
+    },
+    "Library, Stats, and Showcase dashboards coming soon." : {
+
+    },
+    "Next up" : {
+
+    },
+    "Package" : {
+
+    },
+    "SampleMate" : {
+
+    },
+    "settings.title" : {
+      "comment" : "",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Settings"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设置"
+          }
+        }
+      }
+    },
+    "Show compact text" : {
+
+    },
+    "Show price row" : {
+
+    },
+    "Showcase" : {
+
+    },
+    "showcase.pause" : {
+      "comment" : "",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pause"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂停"
+          }
+        }
+      }
+    },
+    "showcase.play" : {
+      "comment" : "",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "播放"
+          }
+        }
+      }
+    },
+    "Slideshow interval" : {
+
+    },
+    "Street Notes" : {
+
+    },
+    "Studio Test" : {
+
+    },
+    "Today’s Highlights" : {
+
+    }
   },
   "version" : "1.1"
 }
