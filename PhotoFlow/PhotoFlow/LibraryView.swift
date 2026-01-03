@@ -2,7 +2,7 @@ import PhotosUI
 import SwiftUI
 
 struct LibraryView: View {
-    @StateObject private var store = LocalLibraryStore()
+    @EnvironmentObject private var store: LocalLibraryStore
     @State private var selections: [PhotosPickerItem] = []
     @State private var selectedPhotoIDs: [String] = []
     @State private var setTitle: String = ""
@@ -15,10 +15,6 @@ struct LibraryView: View {
     @State private var showNewTagPrompt = false
     @State private var newTagName: String = ""
     @State private var path: [String] = []
-
-    init(store: LocalLibraryStore = LocalLibraryStore()) {
-        _store = StateObject(wrappedValue: store)
-    }
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -213,7 +209,7 @@ struct LibraryView: View {
             .navigationTitle("Library")
             .background(Color(.systemGroupedBackground))
             .navigationDestination(for: String.self) { setID in
-                SetDetailView(store: store, setID: setID)
+                SetDetailView(setId: setID)
             }
             .alert("New Set", isPresented: $showNewSetPrompt) {
                 TextField("Title", text: $setTitle)
@@ -347,15 +343,16 @@ struct LibraryView: View {
 }
 
 private struct SetDetailView: View {
-    @ObservedObject var store: LocalLibraryStore
-    let setID: String
+    @EnvironmentObject var store: LocalLibraryStore
+    let setId: String
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         ScrollView {
-            let set = store.sets.first(where: { $0.id == setID })
+            let set = store.sets.first(where: { $0.id == setId })
             if let set {
                 let tags = tagsSorted()
+                let assignedTags = Set(store.tagsForSet(setID: setId).map { $0.id })
                 if !tags.isEmpty {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Tags")
@@ -368,7 +365,7 @@ private struct SetDetailView: View {
                                     Text(tag.name)
                                         .font(.system(size: 14, weight: .medium, design: .rounded))
                                     Spacer()
-                                    if isTagAssigned(setID: set.id, tagID: tag.id) {
+                                    if assignedTags.contains(tag.id) {
                                         Image(systemName: "checkmark.circle.fill")
                                             .foregroundStyle(.primary)
                                     } else {
@@ -399,16 +396,16 @@ private struct SetDetailView: View {
                 .padding(.horizontal, 20)
                 .padding(.vertical, 16)
             } else {
-                Text("Set not found")
+                Text("套图已删除")
                     .font(.system(size: 14, weight: .medium, design: .rounded))
                     .foregroundStyle(.secondary)
                     .padding(.vertical, 24)
             }
         }
-        .navigationTitle(store.sets.first(where: { $0.id == setID })?.title ?? "Set")
+        .navigationTitle(store.sets.first(where: { $0.id == setId })?.title ?? "Set")
         .toolbar {
             Button("Delete Set", role: .destructive) {
-                store.deleteSet(setID: setID)
+                store.deleteSet(setID: setId)
                 dismiss()
             }
         }
@@ -420,7 +417,7 @@ private struct SetDetailView: View {
     }
 
     private func isTagAssigned(setID: String, tagID: String) -> Bool {
-        store.setTagLinks.contains { $0.setId == setID && $0.tagId == tagID }
+        store.tagsForSet(setID: setID).contains { $0.id == tagID }
     }
 
     private func toggleTag(setID: String, tagID: String) {

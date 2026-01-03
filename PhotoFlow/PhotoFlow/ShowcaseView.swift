@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ShowcaseView: View {
-    @ObservedObject var store: LocalLibraryStore
+    @EnvironmentObject var store: LocalLibraryStore
 
     @AppStorage("priceVisible") private var priceVisible: Bool = true
     @AppStorage("compactTextVisible") private var compactTextVisible: Bool = true

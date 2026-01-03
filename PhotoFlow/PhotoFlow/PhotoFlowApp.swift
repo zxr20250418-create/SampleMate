@@ -9,9 +9,12 @@ import SwiftUI
 
 @main
 struct PhotoFlowApp: App {
+    @StateObject private var store = LocalLibraryStore()
+
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(store)
         }
     }
 }

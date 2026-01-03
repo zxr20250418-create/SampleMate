@@ -98,6 +98,7 @@ final class LocalLibraryStore: ObservableObject {
         if !newItems.isEmpty {
             await MainActor.run {
                 items.append(contentsOf: newItems)
+                items = items
             }
             await MainActor.run {
                 persistCatalog()
@@ -117,6 +118,7 @@ final class LocalLibraryStore: ObservableObject {
         Task {
             await MainActor.run {
                 sets.append(set)
+                sets = sets
             }
             await MainActor.run {
                 persistSets()
@@ -133,6 +135,7 @@ final class LocalLibraryStore: ObservableObject {
         Task {
             await MainActor.run {
                 categories.append(category)
+                categories = categories
             }
             await MainActor.run {
                 persistCategories()
@@ -146,6 +149,7 @@ final class LocalLibraryStore: ObservableObject {
             await MainActor.run {
                 guard let idx = categories.firstIndex(where: { $0.id == categoryID }) else { return }
                 categories[idx].name = name
+                categories = categories
             }
             await MainActor.run {
                 persistCategories()
@@ -163,6 +167,8 @@ final class LocalLibraryStore: ObservableObject {
                 for idx in sets.indices where sets[idx].categoryId == categoryID {
                     sets[idx].categoryId = nil
                 }
+                categories = categories
+                sets = sets
             }
             await MainActor.run {
                 persistCategories()
@@ -178,6 +184,7 @@ final class LocalLibraryStore: ObservableObject {
                 for idx in categories.indices {
                     categories[idx].sortIndex = idx
                 }
+                categories = categories
             }
             await MainActor.run {
                 persistCategories()
@@ -190,6 +197,7 @@ final class LocalLibraryStore: ObservableObject {
             await MainActor.run {
                 guard let idx = sets.firstIndex(where: { $0.id == setID }) else { return }
                 sets[idx].categoryId = categoryID
+                sets = sets
             }
             await MainActor.run {
                 persistSets()
@@ -206,6 +214,7 @@ final class LocalLibraryStore: ObservableObject {
         Task {
             await MainActor.run {
                 tags.append(tag)
+                tags = tags
             }
             await MainActor.run {
                 persistTags()
@@ -219,6 +228,7 @@ final class LocalLibraryStore: ObservableObject {
             await MainActor.run {
                 guard let idx = tags.firstIndex(where: { $0.id == tagID }) else { return }
                 tags[idx].name = name
+                tags = tags
             }
             await MainActor.run {
                 persistTags()
@@ -234,6 +244,8 @@ final class LocalLibraryStore: ObservableObject {
                     tags[idx].sortIndex = idx
                 }
                 setTagLinks.removeAll { $0.tagId == tagID }
+                tags = tags
+                setTagLinks = setTagLinks
             }
             await MainActor.run {
                 persistTags()
@@ -247,6 +259,7 @@ final class LocalLibraryStore: ObservableObject {
             await MainActor.run {
                 guard !setTagLinks.contains(where: { $0.setId == setID && $0.tagId == tagID }) else { return }
                 setTagLinks.append(SetTagLink(setId: setID, tagId: tagID))
+                setTagLinks = setTagLinks
             }
             await MainActor.run {
                 persistSetTagLinks()
@@ -258,6 +271,7 @@ final class LocalLibraryStore: ObservableObject {
         Task {
             await MainActor.run {
                 setTagLinks.removeAll { $0.setId == setID && $0.tagId == tagID }
+                setTagLinks = setTagLinks
             }
             await MainActor.run {
                 persistSetTagLinks()
@@ -275,6 +289,7 @@ final class LocalLibraryStore: ObservableObject {
             await MainActor.run {
                 guard let idx = sets.firstIndex(where: { $0.id == setID }) else { return }
                 sets[idx].mainPhotoID = photoID
+                sets = sets
             }
             await MainActor.run {
                 persistSets()
@@ -286,6 +301,7 @@ final class LocalLibraryStore: ObservableObject {
         Task {
             await MainActor.run {
                 sets.removeAll { $0.id == setID }
+                sets = sets
             }
             await MainActor.run {
                 persistSets()

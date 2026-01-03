@@ -12,7 +12,7 @@ struct ContentView: View {
     @State private var showSettings: Bool = false
     @State private var showLibrary: Bool = false
 
-    @StateObject private var libraryStore = LocalLibraryStore()
+    @EnvironmentObject private var store: LocalLibraryStore
 
     private let highlights: [Highlight] = [
         Highlight(title: "Golden Hour Walk", subtitle: "24 shots · 6 picks", tone: .warm),
@@ -48,13 +48,13 @@ struct ContentView: View {
             }
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(isPresented: $showShowcase) {
-                ShowcaseView(store: libraryStore)
+                ShowcaseView()
             }
             .sheet(isPresented: $showSettings) {
                 PR1SettingsView()
             }
             .sheet(isPresented: $showLibrary) {
-                LibraryView(store: libraryStore)
+                LibraryView()
             }
         }
     }
@@ -131,6 +131,7 @@ struct ContentView: View {
 
 #Preview {
     ContentView()
+        .environmentObject(LocalLibraryStore())
 }
 
 private struct Highlight: Identifiable {
