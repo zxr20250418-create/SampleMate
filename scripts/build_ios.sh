@@ -33,11 +33,10 @@ if [[ -z "${SCHEME}" ]]; then
 fi
 
 echo "Building iOS: project=$PROJECT scheme=$SCHEME"
-xcodebuild \
-  -project "$PROJECT" \
-  -scheme "$SCHEME" \
-  -sdk iphonesimulator \
-  -destination 'generic/platform=iOS Simulator' \
-  build
+DESTINATION="${DESTINATION:-generic/platform=iOS Simulator}"
+SDK="${SDK:-iphonesimulator}"
+set -o pipefail
+xcodebuild -project "$PROJECT" -scheme "$SCHEME" -configuration Debug -sdk "$SDK" -destination "$DESTINATION" build \
+  2> >(grep -v "IDERunDestination: Supported platforms for the buildables in the current scheme is empty" >&2)
 
 echo "OK: iOS build passed."
