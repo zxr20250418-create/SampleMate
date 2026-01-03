@@ -156,7 +156,7 @@ private struct Highlight: Identifiable {
 
 private struct Stat: Identifiable {
     let id = UUID()
-    let label: String
+    let label: LocalizedStringKey
     let value: String
 }
 
