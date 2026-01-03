@@ -11,19 +11,30 @@ final class LocalLibraryStore: ObservableObject {
         let createdAt: Date
     }
 
+    struct SampleSet: Codable, Identifiable, Equatable {
+        let id: String
+        var title: String
+        var photoIDsOrdered: [String]
+        var mainPhotoID: String
+        let createdAt: Date
+    }
+
     typealias Item = LocalLibraryItem
 
     nonisolated let objectWillChange = ObservableObjectPublisher()
     @Published private(set) var items: [LocalLibraryItem] = []
+    @Published private(set) var sets: [SampleSet] = []
 
     private let fileManager = FileManager.default
     private let photosFolderName = "Photos"
     private let thumbsFolderName = "Thumbs"
     private let catalogFileName = "catalog.json"
+    private let setsFileName = "sets.json"
 
     init() {
         Task {
             await loadCatalog()
+            await loadSets()
         }
     }
 
@@ -65,6 +76,48 @@ final class LocalLibraryStore: ObservableObject {
         }
     }
 
+    func createSet(title: String, photoIDs: [String]) -> SampleSet {
+        let normalized = photoIDs.filter { id in items.contains { $0.id == id } }
+        let mainID = normalized.first ?? ""
+        let set = SampleSet(id: UUID().uuidString,
+                            title: title,
+                            photoIDsOrdered: normalized,
+                            mainPhotoID: mainID,
+                            createdAt: Date())
+        Task {
+            await MainActor.run {
+                sets.append(set)
+            }
+            await MainActor.run {
+                persistSets()
+            }
+        }
+        return set
+    }
+
+    func setMainPhoto(setID: String, photoID: String) {
+        Task {
+            await MainActor.run {
+                guard let idx = sets.firstIndex(where: { $0.id == setID }) else { return }
+                sets[idx].mainPhotoID = photoID
+            }
+            await MainActor.run {
+                persistSets()
+            }
+        }
+    }
+
+    func deleteSet(setID: String) {
+        Task {
+            await MainActor.run {
+                sets.removeAll { $0.id == setID }
+            }
+            await MainActor.run {
+                persistSets()
+            }
+        }
+    }
+
     func image(at path: String) -> UIImage? {
         UIImage(contentsOfFile: path)
     }
@@ -96,6 +149,10 @@ final class LocalLibraryStore: ObservableObject {
         applicationSupportDirectory().appendingPathComponent(catalogFileName)
     }
 
+    private func setsURL() -> URL {
+        applicationSupportDirectory().appendingPathComponent(setsFileName)
+    }
+
     private func loadCatalog() async {
         let url = catalogURL()
         guard let data = try? Data(contentsOf: url),
@@ -111,9 +168,29 @@ final class LocalLibraryStore: ObservableObject {
         }
     }
 
+    private func loadSets() async {
+        let url = setsURL()
+        guard let data = try? Data(contentsOf: url),
+              let decoded = try? JSONDecoder().decode([SampleSet].self, from: data) else {
+            await MainActor.run {
+                sets = []
+            }
+            return
+        }
+        await MainActor.run {
+            sets = decoded
+        }
+    }
+
     private func persistCatalog() {
         let url = catalogURL()
         let data = try? JSONEncoder().encode(items)
+        try? data?.write(to: url, options: .atomic)
+    }
+
+    private func persistSets() {
+        let url = setsURL()
+        let data = try? JSONEncoder().encode(sets)
         try? data?.write(to: url, options: .atomic)
     }
 

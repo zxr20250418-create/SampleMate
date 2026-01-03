@@ -32,17 +32,24 @@ struct ShowcaseView: View {
     }
 
     var body: some View {
+        let usesSets = !store.sets.isEmpty
         let usesLocal = !store.items.isEmpty
         let category = catalog.categories[safe: categoryIndex]
         let set = category?.sets[safe: setIndex]
         let demoPhotos = set?.photos ?? []
-        let displayPhotos: [DisplayPhoto] = usesLocal
-            ? store.items.map { DisplayPhoto(id: $0.id, source: .local($0)) }
-            : demoPhotos.enumerated().map { DisplayPhoto(id: "demo-\($0.offset)", source: .demo($0.element)) }
-        let categoryName = usesLocal ? "Local Library" : (category?.name ?? "Showcase")
-        let setTitle = usesLocal ? "Imported Photos" : (set?.title ?? "Set")
-        let setNote = usesLocal ? "From your Photos library." : (set?.note ?? "")
-        let priceText = usesLocal ? "" : (set?.priceText ?? "")
+        let activeSet = store.sets[safe: setIndex]
+        let setPhotoItems = activeSet?.photoIDsOrdered.compactMap { id in
+            store.items.first(where: { $0.id == id })
+        } ?? []
+        let displayPhotos: [DisplayPhoto] = usesSets
+            ? setPhotoItems.map { DisplayPhoto(id: $0.id, source: .local($0)) }
+            : (usesLocal
+                ? store.items.map { DisplayPhoto(id: $0.id, source: .local($0)) }
+                : demoPhotos.enumerated().map { DisplayPhoto(id: "demo-\($0.offset)", source: .demo($0.element)) })
+        let categoryName = usesSets ? "Sample Sets" : (usesLocal ? "Local Library" : (category?.name ?? "Showcase"))
+        let setTitle = usesSets ? (activeSet?.title ?? "Set") : (usesLocal ? "Imported Photos" : (set?.title ?? "Set"))
+        let setNote = usesSets ? "" : (usesLocal ? "From your Photos library." : (set?.note ?? ""))
+        let priceText = usesSets ? "" : (usesLocal ? "" : (set?.priceText ?? ""))
 
         GeometryReader { proxy in
             let size = proxy.size
@@ -131,6 +138,15 @@ struct ShowcaseView: View {
         }
         .onChange(of: store.items.count) { _ in
             if photoIndex >= displayPhotos.count { photoIndex = 0 }
+        }
+        .onChange(of: store.sets.count) { _ in
+            if setIndex >= store.sets.count { setIndex = 0 }
+            syncPhotoIndex(mainID: activeSet?.mainPhotoID, photos: displayPhotos)
+        }
+        .onChange(of: setIndex) { _ in
+            if usesSets {
+                syncPhotoIndex(mainID: activeSet?.mainPhotoID, photos: displayPhotos)
+            }
         }
     }
 
@@ -310,7 +326,7 @@ struct ShowcaseView: View {
     }
 
     private func nextCategory(_ d: Int) {
-        if !store.items.isEmpty { return }
+        if !store.sets.isEmpty { return }
         let c = catalog.categories.count
         categoryIndex = (categoryIndex + d + c) % c
         setIndex = 0
@@ -318,10 +334,37 @@ struct ShowcaseView: View {
     }
 
     private func nextSet(_ d: Int) {
-        if !store.items.isEmpty { return }
+        if !store.sets.isEmpty {
+            let s = store.sets.count
+            if s == 0 { return }
+            setIndex = (setIndex + d + s) % s
+            syncPhotoIndex(mainID: store.sets[safe: setIndex]?.mainPhotoID, photos: displayPhotosForSet())
+            return
+        }
         let s = catalog.categories[categoryIndex].sets.count
         setIndex = (setIndex + d + s) % s
         photoIndex = 0
+    }
+
+    private func displayPhotosForSet() -> [DisplayPhoto] {
+        guard let activeSet = store.sets[safe: setIndex] else { return [] }
+        let items = activeSet.photoIDsOrdered.compactMap { id in
+            store.items.first(where: { $0.id == id })
+        }
+        return items.map { DisplayPhoto(id: $0.id, source: .local($0)) }
+    }
+
+    private func syncPhotoIndex(mainID: String?, photos: [DisplayPhoto]) {
+        guard !photos.isEmpty else {
+            photoIndex = 0
+            return
+        }
+        if let mainID,
+           let idx = photos.firstIndex(where: { $0.id == mainID }) {
+            photoIndex = idx
+        } else if photoIndex >= photos.count {
+            photoIndex = 0
+        }
     }
 }
 
