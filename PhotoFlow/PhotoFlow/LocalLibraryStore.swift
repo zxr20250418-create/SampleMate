@@ -1,16 +1,20 @@
+import Combine
 import PhotosUI
 import SwiftUI
 import UIKit
 
 final class LocalLibraryStore: ObservableObject {
-    struct Item: Identifiable, Codable, Equatable {
+    struct LocalLibraryItem: Identifiable, Codable, Equatable {
         let id: String
         let photoPath: String
         let thumbPath: String
         let createdAt: Date
     }
 
-    @Published private(set) var items: [Item] = []
+    typealias Item = LocalLibraryItem
+
+    nonisolated let objectWillChange = ObservableObjectPublisher()
+    @Published private(set) var items: [LocalLibraryItem] = []
 
     private let fileManager = FileManager.default
     private let photosFolderName = "Photos"
@@ -18,11 +22,13 @@ final class LocalLibraryStore: ObservableObject {
     private let catalogFileName = "catalog.json"
 
     init() {
-        loadCatalog()
+        Task {
+            await loadCatalog()
+        }
     }
 
     func importItems(_ selections: [PhotosPickerItem]) async {
-        var newItems: [Item] = []
+        var newItems: [LocalLibraryItem] = []
         for selection in selections {
             guard let data = try? await selection.loadTransferable(type: Data.self) else { continue }
             guard let image = UIImage(data: data) else { continue }
@@ -43,15 +49,19 @@ final class LocalLibraryStore: ObservableObject {
                 try? thumbData.write(to: thumbURL, options: .atomic)
             }
 
-            newItems.append(Item(id: id,
-                                 photoPath: photoURL.path,
-                                 thumbPath: thumbURL.path,
-                                 createdAt: Date()))
+            newItems.append(LocalLibraryItem(id: id,
+                                             photoPath: photoURL.path,
+                                             thumbPath: thumbURL.path,
+                                             createdAt: Date()))
         }
 
         if !newItems.isEmpty {
-            items.append(contentsOf: newItems)
-            persistCatalog()
+            await MainActor.run {
+                items.append(contentsOf: newItems)
+            }
+            await MainActor.run {
+                persistCatalog()
+            }
         }
     }
 
@@ -86,14 +96,19 @@ final class LocalLibraryStore: ObservableObject {
         applicationSupportDirectory().appendingPathComponent(catalogFileName)
     }
 
-    private func loadCatalog() {
+    private func loadCatalog() async {
         let url = catalogURL()
         guard let data = try? Data(contentsOf: url),
-              let decoded = try? JSONDecoder().decode([Item].self, from: data) else {
-            items = []
+              let decoded = try? JSONDecoder().decode([LocalLibraryItem].self, from: data) else {
+            await MainActor.run {
+                items = []
+            }
             return
         }
-        items = decoded.filter { fileManager.fileExists(atPath: $0.photoPath) }
+        let filtered = decoded.filter { fileManager.fileExists(atPath: $0.photoPath) }
+        await MainActor.run {
+            items = filtered
+        }
     }
 
     private func persistCatalog() {

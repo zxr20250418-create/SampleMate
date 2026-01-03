@@ -2,8 +2,12 @@ import PhotosUI
 import SwiftUI
 
 struct LibraryView: View {
-    @ObservedObject var store: LocalLibraryStore
+    @StateObject private var store = LocalLibraryStore()
     @State private var selections: [PhotosPickerItem] = []
+
+    init(store: LocalLibraryStore = LocalLibraryStore()) {
+        _store = StateObject(wrappedValue: store)
+    }
 
     var body: some View {
         NavigationStack {
