@@ -27,12 +27,26 @@ final class LocalLibraryStore: ObservableObject {
         let createdAt: Date
     }
 
+    struct Tag: Codable, Identifiable, Equatable {
+        let id: String
+        var name: String
+        var sortIndex: Int
+        let createdAt: Date
+    }
+
+    struct SetTagLink: Codable, Equatable {
+        let setId: String
+        let tagId: String
+    }
+
     typealias Item = LocalLibraryItem
 
     nonisolated let objectWillChange = ObservableObjectPublisher()
     @Published private(set) var items: [LocalLibraryItem] = []
     @Published private(set) var sets: [SampleSet] = []
     @Published private(set) var categories: [DisplayCategory] = []
+    @Published private(set) var tags: [Tag] = []
+    @Published private(set) var setTagLinks: [SetTagLink] = []
 
     private let fileManager = FileManager.default
     private let photosFolderName = "Photos"
@@ -40,12 +54,16 @@ final class LocalLibraryStore: ObservableObject {
     private let catalogFileName = "catalog.json"
     private let setsFileName = "sets.json"
     private let categoriesFileName = "categories.json"
+    private let tagsFileName = "tags.json"
+    private let setTagLinksFileName = "set_tag_links.json"
 
     init() {
         Task {
             await loadCatalog()
             await loadSets()
             await loadCategories()
+            await loadTags()
+            await loadSetTagLinks()
         }
     }
 
@@ -179,6 +197,79 @@ final class LocalLibraryStore: ObservableObject {
         }
     }
 
+    func createTag(name: String) -> Tag {
+        let nextIndex = (tags.map { $0.sortIndex }.max() ?? -1) + 1
+        let tag = Tag(id: UUID().uuidString,
+                      name: name,
+                      sortIndex: nextIndex,
+                      createdAt: Date())
+        Task {
+            await MainActor.run {
+                tags.append(tag)
+            }
+            await MainActor.run {
+                persistTags()
+            }
+        }
+        return tag
+    }
+
+    func renameTag(tagID: String, name: String) {
+        Task {
+            await MainActor.run {
+                guard let idx = tags.firstIndex(where: { $0.id == tagID }) else { return }
+                tags[idx].name = name
+            }
+            await MainActor.run {
+                persistTags()
+            }
+        }
+    }
+
+    func deleteTag(tagID: String) {
+        Task {
+            await MainActor.run {
+                tags.removeAll { $0.id == tagID }
+                for idx in tags.indices {
+                    tags[idx].sortIndex = idx
+                }
+                setTagLinks.removeAll { $0.tagId == tagID }
+            }
+            await MainActor.run {
+                persistTags()
+                persistSetTagLinks()
+            }
+        }
+    }
+
+    func assignTagToSet(setID: String, tagID: String) {
+        Task {
+            await MainActor.run {
+                guard !setTagLinks.contains(where: { $0.setId == setID && $0.tagId == tagID }) else { return }
+                setTagLinks.append(SetTagLink(setId: setID, tagId: tagID))
+            }
+            await MainActor.run {
+                persistSetTagLinks()
+            }
+        }
+    }
+
+    func unassignTagFromSet(setID: String, tagID: String) {
+        Task {
+            await MainActor.run {
+                setTagLinks.removeAll { $0.setId == setID && $0.tagId == tagID }
+            }
+            await MainActor.run {
+                persistSetTagLinks()
+            }
+        }
+    }
+
+    func tagsForSet(setID: String) -> [Tag] {
+        let tagIDs = Set(setTagLinks.filter { $0.setId == setID }.map { $0.tagId })
+        return tags.filter { tagIDs.contains($0.id) }.sorted { $0.sortIndex < $1.sortIndex }
+    }
+
     func setMainPhoto(setID: String, photoID: String) {
         Task {
             await MainActor.run {
@@ -241,6 +332,14 @@ final class LocalLibraryStore: ObservableObject {
         applicationSupportDirectory().appendingPathComponent(categoriesFileName)
     }
 
+    private func tagsURL() -> URL {
+        applicationSupportDirectory().appendingPathComponent(tagsFileName)
+    }
+
+    private func setTagLinksURL() -> URL {
+        applicationSupportDirectory().appendingPathComponent(setTagLinksFileName)
+    }
+
     private func loadCatalog() async {
         let url = catalogURL()
         guard let data = try? Data(contentsOf: url),
@@ -285,6 +384,35 @@ final class LocalLibraryStore: ObservableObject {
         }
     }
 
+    private func loadTags() async {
+        let url = tagsURL()
+        guard let data = try? Data(contentsOf: url),
+              let decoded = try? JSONDecoder().decode([Tag].self, from: data) else {
+            await MainActor.run {
+                tags = []
+            }
+            return
+        }
+        let sorted = decoded.sorted { $0.sortIndex < $1.sortIndex }
+        await MainActor.run {
+            tags = sorted
+        }
+    }
+
+    private func loadSetTagLinks() async {
+        let url = setTagLinksURL()
+        guard let data = try? Data(contentsOf: url),
+              let decoded = try? JSONDecoder().decode([SetTagLink].self, from: data) else {
+            await MainActor.run {
+                setTagLinks = []
+            }
+            return
+        }
+        await MainActor.run {
+            setTagLinks = decoded
+        }
+    }
+
     private func persistCatalog() {
         let url = catalogURL()
         let data = try? JSONEncoder().encode(items)
@@ -300,6 +428,18 @@ final class LocalLibraryStore: ObservableObject {
     private func persistCategories() {
         let url = categoriesURL()
         let data = try? JSONEncoder().encode(categories)
+        try? data?.write(to: url, options: .atomic)
+    }
+
+    private func persistTags() {
+        let url = tagsURL()
+        let data = try? JSONEncoder().encode(tags)
+        try? data?.write(to: url, options: .atomic)
+    }
+
+    private func persistSetTagLinks() {
+        let url = setTagLinksURL()
+        let data = try? JSONEncoder().encode(setTagLinks)
         try? data?.write(to: url, options: .atomic)
     }
 
