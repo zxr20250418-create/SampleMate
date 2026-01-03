@@ -32,24 +32,35 @@ struct ShowcaseView: View {
     }
 
     var body: some View {
+        let usesCategories = !store.categories.isEmpty
         let usesSets = !store.sets.isEmpty
         let usesLocal = !store.items.isEmpty
-        let category = catalog.categories[safe: categoryIndex]
-        let set = category?.sets[safe: setIndex]
-        let demoPhotos = set?.photos ?? []
-        let activeSet = store.sets[safe: setIndex]
+        let categories = categoriesSorted()
+        let activeCategory = categories[safe: categoryIndex]
+        let setsForCategory = usesCategories
+            ? store.sets.filter { $0.categoryId == activeCategory?.id }
+            : store.sets
+        let activeSet = setsForCategory[safe: setIndex]
         let setPhotoItems = activeSet?.photoIDsOrdered.compactMap { id in
             store.items.first(where: { $0.id == id })
         } ?? []
-        let displayPhotos: [DisplayPhoto] = usesSets
+        let category = catalog.categories[safe: categoryIndex]
+        let demoSet = category?.sets[safe: setIndex]
+        let demoPhotos = demoSet?.photos ?? []
+        let displayPhotos: [DisplayPhoto] = usesCategories || usesSets
             ? setPhotoItems.map { DisplayPhoto(id: $0.id, source: .local($0)) }
             : (usesLocal
                 ? store.items.map { DisplayPhoto(id: $0.id, source: .local($0)) }
                 : demoPhotos.enumerated().map { DisplayPhoto(id: "demo-\($0.offset)", source: .demo($0.element)) })
-        let categoryName = usesSets ? "Sample Sets" : (usesLocal ? "Local Library" : (category?.name ?? "Showcase"))
-        let setTitle = usesSets ? (activeSet?.title ?? "Set") : (usesLocal ? "Imported Photos" : (set?.title ?? "Set"))
-        let setNote = usesSets ? "" : (usesLocal ? "From your Photos library." : (set?.note ?? ""))
-        let priceText = usesSets ? "" : (usesLocal ? "" : (set?.priceText ?? ""))
+        let categoryName = usesCategories
+            ? (activeCategory?.name ?? "分类")
+            : (usesSets ? "Sample Sets" : (usesLocal ? "Local Library" : (category?.name ?? "Showcase")))
+        let setTitle = usesCategories || usesSets
+            ? (activeSet?.title ?? "Set")
+            : (usesLocal ? "Imported Photos" : (demoSet?.title ?? "Set"))
+        let setNote = usesCategories || usesSets ? "" : (usesLocal ? "From your Photos library." : (demoSet?.note ?? ""))
+        let priceText = usesCategories || usesSets || usesLocal ? "" : (demoSet?.priceText ?? "")
+        let categoryEmpty = usesCategories && setsForCategory.isEmpty
 
         GeometryReader { proxy in
             let size = proxy.size
@@ -73,7 +84,9 @@ struct ShowcaseView: View {
                         }
 
                         Group {
-                            if let photo = displayPhotos[safe: photoIndex] {
+                            if categoryEmpty {
+                                categoryEmptyView(height: mainHeight)
+                            } else if let photo = displayPhotos[safe: photoIndex] {
                                 mainPhotoView(photo: photo, height: mainHeight, isFullscreen: isFullscreen)
                             } else {
                                 fallbackMainPhoto(height: mainHeight, isFullscreen: isFullscreen)
@@ -139,13 +152,37 @@ struct ShowcaseView: View {
         .onChange(of: store.items.count) { _ in
             if photoIndex >= displayPhotos.count { photoIndex = 0 }
         }
-        .onChange(of: store.sets.count) { _ in
-            if setIndex >= store.sets.count { setIndex = 0 }
-            syncPhotoIndex(mainID: activeSet?.mainPhotoID, photos: displayPhotos)
+        .onChange(of: store.categories) { _ in
+            let categories = categoriesSorted()
+            if categoryIndex >= categories.count { categoryIndex = 0 }
+            if !categories.isEmpty {
+                let setsForCategory = store.sets.filter { $0.categoryId == categories[safe: categoryIndex]?.id }
+                setIndex = 0
+                syncPhotoIndex(mainID: setsForCategory.first?.mainPhotoID,
+                               photos: displayPhotosForSet(setsForCategory.first))
+            }
         }
-        .onChange(of: setIndex) { _ in
-            if usesSets {
-                syncPhotoIndex(mainID: activeSet?.mainPhotoID, photos: displayPhotos)
+        .onChange(of: categoryIndex) { _ in
+            let categories = categoriesSorted()
+            if !categories.isEmpty {
+                let setsForCategory = store.sets.filter { $0.categoryId == categories[safe: categoryIndex]?.id }
+                setIndex = 0
+                syncPhotoIndex(mainID: setsForCategory.first?.mainPhotoID,
+                               photos: displayPhotosForSet(setsForCategory.first))
+            }
+        }
+        .onChange(of: store.sets) { _ in
+            let categories = categoriesSorted()
+            if !categories.isEmpty {
+                let setsForCategory = store.sets.filter { $0.categoryId == categories[safe: categoryIndex]?.id }
+                if setIndex >= setsForCategory.count { setIndex = 0 }
+                let activeSet = setsForCategory[safe: setIndex]
+                syncPhotoIndex(mainID: activeSet?.mainPhotoID,
+                               photos: displayPhotosForSet(activeSet))
+            } else if !store.sets.isEmpty {
+                if setIndex >= store.sets.count { setIndex = 0 }
+                syncPhotoIndex(mainID: store.sets[safe: setIndex]?.mainPhotoID,
+                               photos: displayPhotosForSet(store.sets[safe: setIndex]))
             }
         }
     }
@@ -198,6 +235,23 @@ struct ShowcaseView: View {
             .aspectRatio(photoAspect, contentMode: .fit)
             .frame(maxWidth: .infinity, maxHeight: height, alignment: .center)
             .padding(isFullscreen ? 18 : 0)
+            .frame(height: height)
+    }
+
+    private func categoryEmptyView(height: CGFloat) -> some View {
+        RoundedRectangle(cornerRadius: 20)
+            .fill(Color.gray.opacity(0.12))
+            .aspectRatio(photoAspect, contentMode: .fit)
+            .frame(maxWidth: .infinity, maxHeight: height, alignment: .center)
+            .overlay(
+                VStack(spacing: 6) {
+                    Text("该分类暂无套图")
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    Text("上下滑动切换分类")
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundStyle(.secondary)
+                }
+            )
             .frame(height: height)
     }
 
@@ -326,6 +380,16 @@ struct ShowcaseView: View {
     }
 
     private func nextCategory(_ d: Int) {
+        let categories = categoriesSorted()
+        if !categories.isEmpty {
+            let c = categories.count
+            categoryIndex = (categoryIndex + d + c) % c
+            let setsForCategory = store.sets.filter { $0.categoryId == categories[safe: categoryIndex]?.id }
+            setIndex = 0
+            syncPhotoIndex(mainID: setsForCategory.first?.mainPhotoID,
+                           photos: displayPhotosForSet(setsForCategory.first))
+            return
+        }
         if !store.sets.isEmpty { return }
         let c = catalog.categories.count
         categoryIndex = (categoryIndex + d + c) % c
@@ -334,11 +398,22 @@ struct ShowcaseView: View {
     }
 
     private func nextSet(_ d: Int) {
+        let categories = categoriesSorted()
+        if !categories.isEmpty {
+            let setsForCategory = store.sets.filter { $0.categoryId == categories[safe: categoryIndex]?.id }
+            let s = setsForCategory.count
+            if s == 0 { return }
+            setIndex = (setIndex + d + s) % s
+            let activeSet = setsForCategory[safe: setIndex]
+            syncPhotoIndex(mainID: activeSet?.mainPhotoID, photos: displayPhotosForSet(activeSet))
+            return
+        }
         if !store.sets.isEmpty {
             let s = store.sets.count
             if s == 0 { return }
             setIndex = (setIndex + d + s) % s
-            syncPhotoIndex(mainID: store.sets[safe: setIndex]?.mainPhotoID, photos: displayPhotosForSet())
+            syncPhotoIndex(mainID: store.sets[safe: setIndex]?.mainPhotoID,
+                           photos: displayPhotosForSet(store.sets[safe: setIndex]))
             return
         }
         let s = catalog.categories[categoryIndex].sets.count
@@ -346,9 +421,13 @@ struct ShowcaseView: View {
         photoIndex = 0
     }
 
-    private func displayPhotosForSet() -> [DisplayPhoto] {
-        guard let activeSet = store.sets[safe: setIndex] else { return [] }
-        let items = activeSet.photoIDsOrdered.compactMap { id in
+    private func categoriesSorted() -> [LocalLibraryStore.DisplayCategory] {
+        store.categories.sorted { $0.sortIndex < $1.sortIndex }
+    }
+
+    private func displayPhotosForSet(_ set: LocalLibraryStore.SampleSet?) -> [DisplayPhoto] {
+        guard let set else { return [] }
+        let items = set.photoIDsOrdered.compactMap { id in
             store.items.first(where: { $0.id == id })
         }
         return items.map { DisplayPhoto(id: $0.id, source: .local($0)) }
