@@ -12,6 +12,8 @@ struct LibraryView: View {
     @State private var showRenameCategoryPrompt = false
     @State private var renameCategoryID: String?
     @State private var renameCategoryName: String = ""
+    @State private var showNewTagPrompt = false
+    @State private var newTagName: String = ""
     @State private var path: [String] = []
 
     init(store: LocalLibraryStore = LocalLibraryStore()) {
@@ -113,6 +115,32 @@ struct LibraryView: View {
                         .padding(.horizontal, 20)
 
                         VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Text("Tags")
+                                    .font(.system(size: 18, weight: .semibold, design: .rounded))
+                                Spacer()
+                                Button {
+                                    newTagName = "新标签"
+                                    showNewTagPrompt = true
+                                } label: {
+                                    Label("Add", systemImage: "plus")
+                                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            ForEach(tagsSorted()) { tag in
+                                HStack(spacing: 12) {
+                                    Text(tag.name)
+                                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                    Spacer()
+                                }
+                                .padding(12)
+                                .background(.white.opacity(0.95), in: RoundedRectangle(cornerRadius: 14))
+                            }
+                        }
+                        .padding(.horizontal, 20)
+
+                        VStack(alignment: .leading, spacing: 12) {
                             Text("Sets")
                                 .font(.system(size: 18, weight: .semibold, design: .rounded))
                             ForEach(store.sets) { set in
@@ -126,6 +154,9 @@ struct LibraryView: View {
                                             Text(set.title)
                                                 .font(.system(size: 16, weight: .semibold, design: .rounded))
                                             Text("\(set.photoIDsOrdered.count) photos")
+                                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                                .foregroundStyle(.secondary)
+                                            Text("标签 \(store.tagsForSet(setID: set.id).count)")
                                                 .font(.system(size: 12, weight: .medium, design: .rounded))
                                                 .foregroundStyle(.secondary)
                                             Picker("Category", selection: Binding(
@@ -220,6 +251,14 @@ struct LibraryView: View {
                     renameCategoryName = ""
                 }
             }
+            .alert("New Tag", isPresented: $showNewTagPrompt) {
+                TextField("Name", text: $newTagName)
+                Button("Create") {
+                    store.createTag(name: newTagName)
+                    newTagName = ""
+                }
+                Button("Cancel", role: .cancel) {}
+            }
         }
     }
 
@@ -231,6 +270,10 @@ struct LibraryView: View {
 
     private func categoriesSorted() -> [LocalLibraryStore.DisplayCategory] {
         store.categories.sorted { $0.sortIndex < $1.sortIndex }
+    }
+
+    private func tagsSorted() -> [LocalLibraryStore.Tag] {
+        store.tags.sorted { $0.sortIndex < $1.sortIndex }
     }
 
     private func moveCategory(category: LocalLibraryStore.DisplayCategory, direction: Int) {
@@ -312,6 +355,34 @@ private struct SetDetailView: View {
         ScrollView {
             let set = store.sets.first(where: { $0.id == setID })
             if let set {
+                let tags = tagsSorted()
+                if !tags.isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Tags")
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                        ForEach(tags) { tag in
+                            Button {
+                                toggleTag(setID: set.id, tagID: tag.id)
+                            } label: {
+                                HStack {
+                                    Text(tag.name)
+                                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                                    Spacer()
+                                    if isTagAssigned(setID: set.id, tagID: tag.id) {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundStyle(.primary)
+                                    } else {
+                                        Image(systemName: "circle")
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 12)
+                }
                 let items = set.photoIDsOrdered.compactMap { id in
                     store.items.first(where: { $0.id == id })
                 }
@@ -342,6 +413,22 @@ private struct SetDetailView: View {
             }
         }
         .background(Color(.systemGroupedBackground))
+    }
+
+    private func tagsSorted() -> [LocalLibraryStore.Tag] {
+        store.tags.sorted { $0.sortIndex < $1.sortIndex }
+    }
+
+    private func isTagAssigned(setID: String, tagID: String) -> Bool {
+        store.setTagLinks.contains { $0.setId == setID && $0.tagId == tagID }
+    }
+
+    private func toggleTag(setID: String, tagID: String) {
+        if isTagAssigned(setID: setID, tagID: tagID) {
+            store.unassignTagFromSet(setID: setID, tagID: tagID)
+        } else {
+            store.assignTagToSet(setID: setID, tagID: tagID)
+        }
     }
 }
 
