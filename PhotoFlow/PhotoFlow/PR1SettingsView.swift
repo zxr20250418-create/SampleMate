@@ -19,7 +19,7 @@ struct PR1SettingsView: View {
                 }
                 .disabled(!slideshowEnabled)
             }
-            .navigationTitle("Settings")
+            .navigationTitle("settings.title")
         }
     }
 }

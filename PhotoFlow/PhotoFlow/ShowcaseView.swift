@@ -120,7 +120,7 @@ struct ShowcaseView: View {
                     if isSlideshowPlaying { pauseSlideshow() }
                     else { startSlideshow(photosCount: photos.count) }
                 } label: {
-                    Text(isSlideshowPlaying ? "Pause" : "Play")
+                    Text(isSlideshowPlaying ? "showcase.pause" : "showcase.play")
                         .font(.system(size: 12, weight: .semibold, design: .rounded))
                         .padding(.horizontal, 10).padding(.vertical, 6)
                         .background(.white.opacity(0.9), in: Capsule())

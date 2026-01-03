@@ -61,10 +61,10 @@ struct ContentView: View {
                 .font(.system(size: 18, weight: .medium, design: .rounded))
                 .foregroundStyle(.secondary)
             HStack(spacing: 12) {
-                ActionChip(title: "Showcase", systemImage: "play.rectangle") {
+                ActionChip(title: "home.action.showcase", systemImage: "play.rectangle") {
                     showShowcase = true
                 }
-                ActionChip(title: "Settings", systemImage: "gearshape") {
+                ActionChip(title: "home.action.settings", systemImage: "gearshape") {
                     showSettings = true
                 }
             }
@@ -149,7 +149,7 @@ private struct Highlight: Identifiable {
     }
 
     let id = UUID()
-    let title: String
+    let title: LocalizedStringKey
     let subtitle: String
     let tone: Tone
 }
@@ -186,7 +186,7 @@ private struct HighlightCard: View {
 }
 
 private struct ActionChip: View {
-    let title: String
+    let title: LocalizedStringKey
     let systemImage: String
     var action: (() -> Void)? = nil
 
