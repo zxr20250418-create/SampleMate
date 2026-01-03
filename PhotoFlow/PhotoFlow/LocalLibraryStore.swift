@@ -16,6 +16,14 @@ final class LocalLibraryStore: ObservableObject {
         var title: String
         var photoIDsOrdered: [String]
         var mainPhotoID: String
+        var categoryId: String?
+        let createdAt: Date
+    }
+
+    struct DisplayCategory: Codable, Identifiable, Equatable {
+        let id: String
+        var name: String
+        var sortIndex: Int
         let createdAt: Date
     }
 
@@ -24,17 +32,20 @@ final class LocalLibraryStore: ObservableObject {
     nonisolated let objectWillChange = ObservableObjectPublisher()
     @Published private(set) var items: [LocalLibraryItem] = []
     @Published private(set) var sets: [SampleSet] = []
+    @Published private(set) var categories: [DisplayCategory] = []
 
     private let fileManager = FileManager.default
     private let photosFolderName = "Photos"
     private let thumbsFolderName = "Thumbs"
     private let catalogFileName = "catalog.json"
     private let setsFileName = "sets.json"
+    private let categoriesFileName = "categories.json"
 
     init() {
         Task {
             await loadCatalog()
             await loadSets()
+            await loadCategories()
         }
     }
 
@@ -83,6 +94,7 @@ final class LocalLibraryStore: ObservableObject {
                             title: title,
                             photoIDsOrdered: normalized,
                             mainPhotoID: mainID,
+                            categoryId: nil,
                             createdAt: Date())
         Task {
             await MainActor.run {
@@ -93,6 +105,78 @@ final class LocalLibraryStore: ObservableObject {
             }
         }
         return set
+    }
+
+    func createCategory(name: String) -> DisplayCategory {
+        let category = DisplayCategory(id: UUID().uuidString,
+                                       name: name,
+                                       sortIndex: categories.count,
+                                       createdAt: Date())
+        Task {
+            await MainActor.run {
+                categories.append(category)
+            }
+            await MainActor.run {
+                persistCategories()
+            }
+        }
+        return category
+    }
+
+    func renameCategory(categoryID: String, name: String) {
+        Task {
+            await MainActor.run {
+                guard let idx = categories.firstIndex(where: { $0.id == categoryID }) else { return }
+                categories[idx].name = name
+            }
+            await MainActor.run {
+                persistCategories()
+            }
+        }
+    }
+
+    func deleteCategory(categoryID: String) {
+        Task {
+            await MainActor.run {
+                categories.removeAll { $0.id == categoryID }
+                for idx in categories.indices {
+                    categories[idx].sortIndex = idx
+                }
+                for idx in sets.indices where sets[idx].categoryId == categoryID {
+                    sets[idx].categoryId = nil
+                }
+            }
+            await MainActor.run {
+                persistCategories()
+                persistSets()
+            }
+        }
+    }
+
+    func moveCategory(fromOffsets: IndexSet, toOffset: Int) {
+        Task {
+            await MainActor.run {
+                categories.move(fromOffsets: fromOffsets, toOffset: toOffset)
+                for idx in categories.indices {
+                    categories[idx].sortIndex = idx
+                }
+            }
+            await MainActor.run {
+                persistCategories()
+            }
+        }
+    }
+
+    func assignSetToCategory(setID: String, categoryID: String?) {
+        Task {
+            await MainActor.run {
+                guard let idx = sets.firstIndex(where: { $0.id == setID }) else { return }
+                sets[idx].categoryId = categoryID
+            }
+            await MainActor.run {
+                persistSets()
+            }
+        }
     }
 
     func setMainPhoto(setID: String, photoID: String) {
@@ -153,6 +237,10 @@ final class LocalLibraryStore: ObservableObject {
         applicationSupportDirectory().appendingPathComponent(setsFileName)
     }
 
+    private func categoriesURL() -> URL {
+        applicationSupportDirectory().appendingPathComponent(categoriesFileName)
+    }
+
     private func loadCatalog() async {
         let url = catalogURL()
         guard let data = try? Data(contentsOf: url),
@@ -182,6 +270,21 @@ final class LocalLibraryStore: ObservableObject {
         }
     }
 
+    private func loadCategories() async {
+        let url = categoriesURL()
+        guard let data = try? Data(contentsOf: url),
+              let decoded = try? JSONDecoder().decode([DisplayCategory].self, from: data) else {
+            await MainActor.run {
+                categories = []
+            }
+            return
+        }
+        let sorted = decoded.sorted { $0.sortIndex < $1.sortIndex }
+        await MainActor.run {
+            categories = sorted
+        }
+    }
+
     private func persistCatalog() {
         let url = catalogURL()
         let data = try? JSONEncoder().encode(items)
@@ -191,6 +294,12 @@ final class LocalLibraryStore: ObservableObject {
     private func persistSets() {
         let url = setsURL()
         let data = try? JSONEncoder().encode(sets)
+        try? data?.write(to: url, options: .atomic)
+    }
+
+    private func persistCategories() {
+        let url = categoriesURL()
+        let data = try? JSONEncoder().encode(categories)
         try? data?.write(to: url, options: .atomic)
     }
 

@@ -7,6 +7,11 @@ struct LibraryView: View {
     @State private var selectedPhotoIDs: [String] = []
     @State private var setTitle: String = ""
     @State private var showNewSetPrompt = false
+    @State private var showNewCategoryPrompt = false
+    @State private var newCategoryName: String = ""
+    @State private var showRenameCategoryPrompt = false
+    @State private var renameCategoryID: String?
+    @State private var renameCategoryName: String = ""
     @State private var path: [String] = []
 
     init(store: LocalLibraryStore = LocalLibraryStore()) {
@@ -51,6 +56,63 @@ struct LibraryView: View {
                         .padding(.horizontal, 20)
 
                         VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Text("Categories")
+                                    .font(.system(size: 18, weight: .semibold, design: .rounded))
+                                Spacer()
+                                Button {
+                                    newCategoryName = "新分类"
+                                    showNewCategoryPrompt = true
+                                } label: {
+                                    Label("Add", systemImage: "plus")
+                                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            ForEach(categoriesSorted()) { category in
+                                HStack(spacing: 12) {
+                                    Text(category.name)
+                                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                    Spacer()
+                                    Button {
+                                        renameCategoryID = category.id
+                                        renameCategoryName = category.name
+                                        showRenameCategoryPrompt = true
+                                    } label: {
+                                        Image(systemName: "pencil")
+                                    }
+                                    .buttonStyle(.plain)
+
+                                    Button(role: .destructive) {
+                                        store.deleteCategory(categoryID: category.id)
+                                    } label: {
+                                        Image(systemName: "trash")
+                                    }
+                                    .buttonStyle(.plain)
+
+                                    Button {
+                                        moveCategory(category: category, direction: -1)
+                                    } label: {
+                                        Image(systemName: "chevron.up")
+                                    }
+                                    .buttonStyle(.plain)
+                                    .disabled(isFirstCategory(category))
+
+                                    Button {
+                                        moveCategory(category: category, direction: 1)
+                                    } label: {
+                                        Image(systemName: "chevron.down")
+                                    }
+                                    .buttonStyle(.plain)
+                                    .disabled(isLastCategory(category))
+                                }
+                                .padding(12)
+                                .background(.white.opacity(0.95), in: RoundedRectangle(cornerRadius: 14))
+                            }
+                        }
+                        .padding(.horizontal, 20)
+
+                        VStack(alignment: .leading, spacing: 12) {
                             Text("Sets")
                                 .font(.system(size: 18, weight: .semibold, design: .rounded))
                             ForEach(store.sets) { set in
@@ -60,12 +122,26 @@ struct LibraryView: View {
                                     HStack(spacing: 12) {
                                         setThumbnailView(set: set)
                                             .frame(width: 56, height: 84)
-                                        VStack(alignment: .leading, spacing: 4) {
+                                        VStack(alignment: .leading, spacing: 6) {
                                             Text(set.title)
                                                 .font(.system(size: 16, weight: .semibold, design: .rounded))
                                             Text("\(set.photoIDsOrdered.count) photos")
                                                 .font(.system(size: 12, weight: .medium, design: .rounded))
                                                 .foregroundStyle(.secondary)
+                                            Picker("Category", selection: Binding(
+                                                get: { set.categoryId ?? "" },
+                                                set: { value in
+                                                    let categoryID = value.isEmpty ? nil : value
+                                                    store.assignSetToCategory(setID: set.id, categoryID: categoryID)
+                                                }
+                                            )) {
+                                                Text("未分类").tag("")
+                                                ForEach(categoriesSorted()) { category in
+                                                    Text(category.name).tag(category.id)
+                                                }
+                                            }
+                                            .pickerStyle(.menu)
+                                            .font(.system(size: 12, weight: .medium, design: .rounded))
                                         }
                                         Spacer()
                                         Image(systemName: "chevron.right")
@@ -122,6 +198,28 @@ struct LibraryView: View {
             } message: {
                 Text("Create a new sample set from selected photos.")
             }
+            .alert("New Category", isPresented: $showNewCategoryPrompt) {
+                TextField("Name", text: $newCategoryName)
+                Button("Create") {
+                    store.createCategory(name: newCategoryName)
+                    newCategoryName = ""
+                }
+                Button("Cancel", role: .cancel) {}
+            }
+            .alert("Rename Category", isPresented: $showRenameCategoryPrompt) {
+                TextField("Name", text: $renameCategoryName)
+                Button("Save") {
+                    if let id = renameCategoryID {
+                        store.renameCategory(categoryID: id, name: renameCategoryName)
+                    }
+                    renameCategoryID = nil
+                    renameCategoryName = ""
+                }
+                Button("Cancel", role: .cancel) {
+                    renameCategoryID = nil
+                    renameCategoryName = ""
+                }
+            }
         }
     }
 
@@ -129,6 +227,27 @@ struct LibraryView: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMdd HH:mm"
         return "套图 \(formatter.string(from: Date()))"
+    }
+
+    private func categoriesSorted() -> [LocalLibraryStore.DisplayCategory] {
+        store.categories.sorted { $0.sortIndex < $1.sortIndex }
+    }
+
+    private func moveCategory(category: LocalLibraryStore.DisplayCategory, direction: Int) {
+        let categories = categoriesSorted()
+        guard let index = categories.firstIndex(where: { $0.id == category.id }) else { return }
+        let target = index + direction
+        guard target >= 0 && target < categories.count else { return }
+        let offset = direction > 0 ? index + 2 : index
+        store.moveCategory(fromOffsets: IndexSet(integer: index), toOffset: offset)
+    }
+
+    private func isFirstCategory(_ category: LocalLibraryStore.DisplayCategory) -> Bool {
+        categoriesSorted().first?.id == category.id
+    }
+
+    private func isLastCategory(_ category: LocalLibraryStore.DisplayCategory) -> Bool {
+        categoriesSorted().last?.id == category.id
     }
 
     private func selectedPhotoIDsOrdered() -> [String] {
