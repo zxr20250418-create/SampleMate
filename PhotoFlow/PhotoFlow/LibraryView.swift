@@ -16,7 +16,7 @@ struct LibraryView: View {
                         .background(.white.opacity(0.95), in: Capsule())
                 }
                 .buttonStyle(.plain)
-                .onChange(of: selections) { newValue in
+                .onChange(of: selections) { _, newValue in
                     guard !newValue.isEmpty else { return }
                     Task {
                         await store.importItems(newValue)

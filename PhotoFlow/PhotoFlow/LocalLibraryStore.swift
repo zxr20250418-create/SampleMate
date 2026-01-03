@@ -2,7 +2,6 @@ import PhotosUI
 import SwiftUI
 import UIKit
 
-@MainActor
 final class LocalLibraryStore: ObservableObject {
     struct Item: Identifiable, Codable, Equatable {
         let id: String
