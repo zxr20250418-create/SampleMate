@@ -65,16 +65,18 @@ struct ShowcaseView: View {
                                 .padding(.horizontal, 12)
                         }
 
-                        if let photo = displayPhotos[safe: photoIndex] {
-                            mainPhotoView(photo: photo, height: mainHeight, isFullscreen: isFullscreen)
-                        } else {
-                            fallbackMainPhoto(height: mainHeight, isFullscreen: isFullscreen)
-                        }
-                            .gesture(dragGesture())
-                            .gesture(pinchGesture())
-                            .onTapGesture {
-                                if isFullscreen { overlaysVisible.toggle() }
+                        Group {
+                            if let photo = displayPhotos[safe: photoIndex] {
+                                mainPhotoView(photo: photo, height: mainHeight, isFullscreen: isFullscreen)
+                            } else {
+                                fallbackMainPhoto(height: mainHeight, isFullscreen: isFullscreen)
                             }
+                        }
+                        .gesture(dragGesture())
+                        .gesture(pinchGesture())
+                        .onTapGesture {
+                            if isFullscreen { overlaysVisible.toggle() }
+                        }
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.horizontal, 20)
