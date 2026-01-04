@@ -22,195 +22,189 @@ struct LibraryView: View {
 
     var body: some View {
         NavigationStack(path: $path) {
-            VStack(spacing: 16) {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
+            List {
+                Section {
+                    HStack(spacing: 12) {
+                        PhotosPicker(selection: $selections, matching: .images) {
+                            Label("Import photos", systemImage: "square.and.arrow.down")
+                                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                                .padding(.vertical, 10)
+                                .padding(.horizontal, 14)
+                                .background(.white.opacity(0.95), in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .onChange(of: selections) { _, newValue in
+                            guard !newValue.isEmpty else { return }
+                            Task {
+                                await store.importItems(newValue)
+                                selections = []
+                            }
+                        }
+
+                        Button {
+                            setTitle = defaultSetTitle()
+                            showNewSetPrompt = true
+                        } label: {
+                            Label("New Set", systemImage: "rectangle.stack.badge.plus")
+                                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                                .padding(.vertical, 10)
+                                .padding(.horizontal, 14)
+                                .background(.white.opacity(0.95), in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(selectedPhotoIDs.isEmpty)
+                    }
+                }
+
+                Section("Categories") {
+                    HStack {
+                        Spacer()
+                        Button {
+                            newCategoryName = "新分类"
+                            showNewCategoryPrompt = true
+                        } label: {
+                            Label("Add", systemImage: "plus")
+                                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    ForEach(categoriesSorted()) { category in
                         HStack(spacing: 12) {
-                            PhotosPicker(selection: $selections, matching: .images) {
-                                Label("Import photos", systemImage: "square.and.arrow.down")
-                                    .font(.system(size: 16, weight: .semibold, design: .rounded))
-                                    .padding(.vertical, 10)
-                                    .padding(.horizontal, 14)
-                                    .background(.white.opacity(0.95), in: Capsule())
+                            Text(category.name)
+                                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                            Spacer()
+                            Button {
+                                renameCategoryID = category.id
+                                renameCategoryName = category.name
+                                showRenameCategoryPrompt = true
+                            } label: {
+                                Image(systemName: "pencil")
                             }
                             .buttonStyle(.plain)
-                            .onChange(of: selections) { _, newValue in
-                                guard !newValue.isEmpty else { return }
-                                Task {
-                                    await store.importItems(newValue)
-                                    selections = []
-                                }
+
+                            Button(role: .destructive) {
+                                store.deleteCategory(categoryID: category.id)
+                            } label: {
+                                Image(systemName: "trash")
                             }
+                            .buttonStyle(.plain)
 
                             Button {
-                                setTitle = defaultSetTitle()
-                                showNewSetPrompt = true
+                                moveCategory(category: category, direction: -1)
                             } label: {
-                                Label("New Set", systemImage: "rectangle.stack.badge.plus")
-                                    .font(.system(size: 16, weight: .semibold, design: .rounded))
-                                    .padding(.vertical, 10)
-                                    .padding(.horizontal, 14)
-                                    .background(.white.opacity(0.95), in: Capsule())
+                                Image(systemName: "chevron.up")
                             }
                             .buttonStyle(.plain)
-                            .disabled(selectedPhotoIDs.isEmpty)
+                            .disabled(isFirstCategory(category))
+
+                            Button {
+                                moveCategory(category: category, direction: 1)
+                            } label: {
+                                Image(systemName: "chevron.down")
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(isLastCategory(category))
                         }
-                        .padding(.horizontal, 20)
-
-                        VStack(alignment: .leading, spacing: 12) {
-                            HStack {
-                                Text("Categories")
-                                    .font(.system(size: 18, weight: .semibold, design: .rounded))
-                                Spacer()
-                                Button {
-                                    newCategoryName = "新分类"
-                                    showNewCategoryPrompt = true
-                                } label: {
-                                    Label("Add", systemImage: "plus")
-                                        .font(.system(size: 14, weight: .semibold, design: .rounded))
-                                }
-                                .buttonStyle(.plain)
-                            }
-                            ForEach(categoriesSorted()) { category in
-                                HStack(spacing: 12) {
-                                    Text(category.name)
-                                        .font(.system(size: 15, weight: .semibold, design: .rounded))
-                                    Spacer()
-                                    Button {
-                                        renameCategoryID = category.id
-                                        renameCategoryName = category.name
-                                        showRenameCategoryPrompt = true
-                                    } label: {
-                                        Image(systemName: "pencil")
-                                    }
-                                    .buttonStyle(.plain)
-
-                                    Button(role: .destructive) {
-                                        store.deleteCategory(categoryID: category.id)
-                                    } label: {
-                                        Image(systemName: "trash")
-                                    }
-                                    .buttonStyle(.plain)
-
-                                    Button {
-                                        moveCategory(category: category, direction: -1)
-                                    } label: {
-                                        Image(systemName: "chevron.up")
-                                    }
-                                    .buttonStyle(.plain)
-                                    .disabled(isFirstCategory(category))
-
-                                    Button {
-                                        moveCategory(category: category, direction: 1)
-                                    } label: {
-                                        Image(systemName: "chevron.down")
-                                    }
-                                    .buttonStyle(.plain)
-                                    .disabled(isLastCategory(category))
-                                }
-                                .padding(12)
-                                .background(.white.opacity(0.95), in: RoundedRectangle(cornerRadius: 14))
-                            }
-                        }
-                        .padding(.horizontal, 20)
-
-                        VStack(alignment: .leading, spacing: 12) {
-                            HStack {
-                                Text("Tags")
-                                    .font(.system(size: 18, weight: .semibold, design: .rounded))
-                                Spacer()
-                                Button {
-                                    newTagName = "新标签"
-                                    showNewTagPrompt = true
-                                } label: {
-                                    Label("Add", systemImage: "plus")
-                                        .font(.system(size: 14, weight: .semibold, design: .rounded))
-                                }
-                                .buttonStyle(.plain)
-                            }
-                            ForEach(tagsSorted()) { tag in
-                                HStack(spacing: 12) {
-                                    Text(tag.name)
-                                        .font(.system(size: 15, weight: .semibold, design: .rounded))
-                                    Spacer()
-                                }
-                                .padding(12)
-                                .background(.white.opacity(0.95), in: RoundedRectangle(cornerRadius: 14))
-                            }
-                        }
-                        .padding(.horizontal, 20)
-
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Sets")
-                                .font(.system(size: 18, weight: .semibold, design: .rounded))
-                            ForEach(store.sets) { set in
-                                Button {
-                                    path.append(set.id)
-                                } label: {
-                                    HStack(spacing: 12) {
-                                        setThumbnailView(set: set)
-                                            .frame(width: 56, height: 84)
-                                        VStack(alignment: .leading, spacing: 6) {
-                                            Text(set.title)
-                                                .font(.system(size: 16, weight: .semibold, design: .rounded))
-                                            Text("\(set.photoIDsOrdered.count) photos")
-                                                .font(.system(size: 12, weight: .medium, design: .rounded))
-                                                .foregroundStyle(.secondary)
-                                            Text("标签 \(store.tagsForSet(setID: set.id).count)")
-                                                .font(.system(size: 12, weight: .medium, design: .rounded))
-                                                .foregroundStyle(.secondary)
-                                            Picker("Category", selection: Binding(
-                                                get: { set.categoryId ?? "" },
-                                                set: { value in
-                                                    let categoryID = value.isEmpty ? nil : value
-                                                    store.assignSetToCategory(setID: set.id, categoryID: categoryID)
-                                                }
-                                            )) {
-                                                Text("未分类").tag("")
-                                                ForEach(categoriesSorted()) { category in
-                                                    Text(category.name).tag(category.id)
-                                                }
-                                            }
-                                            .pickerStyle(.menu)
-                                            .font(.system(size: 12, weight: .medium, design: .rounded))
-                                        }
-                                        Spacer()
-                                        Image(systemName: "chevron.right")
-                                            .font(.system(size: 12, weight: .semibold))
-                                            .foregroundStyle(.secondary)
-                                    }
-                                    .padding(12)
-                                    .background(.white.opacity(0.95), in: RoundedRectangle(cornerRadius: 14))
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                        .padding(.horizontal, 20)
-
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Photos")
-                                .font(.system(size: 18, weight: .semibold, design: .rounded))
-                            let columns = [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
-                            LazyVGrid(columns: columns, spacing: 12) {
-                                ForEach(store.items) { item in
-                                    photoCell(item: item)
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 12)
-                                                .stroke(isSelected(item.id) ? Color.primary.opacity(0.9) : .clear, lineWidth: 2)
-                                        )
-                                        .onTapGesture {
-                                            toggleSelection(for: item.id)
-                                        }
-                                }
-                            }
-                        }
-                        .padding(.horizontal, 20)
+                        .padding(12)
+                        .background(.white.opacity(0.95), in: RoundedRectangle(cornerRadius: 14))
                     }
-                    .padding(.bottom, 20)
+                }
+
+                Section("Tags") {
+                    HStack {
+                        Spacer()
+                        Button {
+                            newTagName = "新标签"
+                            showNewTagPrompt = true
+                        } label: {
+                            Label("Add", systemImage: "plus")
+                                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    ForEach(tagsSorted()) { tag in
+                        HStack(spacing: 12) {
+                            Text(tag.name)
+                                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                            Spacer()
+                        }
+                        .padding(12)
+                        .background(.white.opacity(0.95), in: RoundedRectangle(cornerRadius: 14))
+                    }
+                }
+
+                ForEach(setGroups()) { group in
+                    Section("Sets · \(group.title)") {
+                        ForEach(group.sets) { set in
+                            Button {
+                                path.append(set.id)
+                            } label: {
+                                HStack(spacing: 12) {
+                                    setThumbnailView(set: set)
+                                        .frame(width: 56, height: 84)
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        Text(set.title)
+                                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                                        Text("\(set.photoIDsOrdered.count) photos")
+                                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                                            .foregroundStyle(.secondary)
+                                        Text("标签 \(store.tagsForSet(setID: set.id).count)")
+                                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                                            .foregroundStyle(.secondary)
+                                        Picker("Category", selection: Binding(
+                                            get: { set.categoryId ?? "" },
+                                            set: { value in
+                                                let categoryID = value.isEmpty ? nil : value
+                                                store.assignSetToCategory(setID: set.id, categoryID: categoryID)
+                                            }
+                                        )) {
+                                            Text("未分类").tag("")
+                                            ForEach(categoriesSorted()) { category in
+                                                Text(category.name).tag(category.id)
+                                            }
+                                        }
+                                        .pickerStyle(.menu)
+                                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                                    }
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding(12)
+                                .background(.white.opacity(0.95), in: RoundedRectangle(cornerRadius: 14))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .onMove { indices, newOffset in
+                            store.reorderSets(categoryId: group.categoryId, fromOffsets: indices, toOffset: newOffset)
+                        }
+                    }
+                }
+
+                Section("Photos") {
+                    let columns = [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
+                    LazyVGrid(columns: columns, spacing: 12) {
+                        ForEach(store.items) { item in
+                            photoCell(item: item)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(isSelected(item.id) ? Color.primary.opacity(0.9) : .clear, lineWidth: 2)
+                                )
+                                .onTapGesture {
+                                    toggleSelection(for: item.id)
+                                }
+                        }
+                    }
                 }
             }
-            .padding(.top, 12)
+            .listStyle(.insetGrouped)
             .navigationTitle("Library")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    EditButton()
+                }
+            }
             .background(Color(.systemGroupedBackground))
             .navigationDestination(for: String.self) { setID in
                 SetDetailView(store: store, setID: setID)
@@ -276,6 +270,30 @@ struct LibraryView: View {
         store.tags.sorted { $0.sortIndex < $1.sortIndex }
     }
 
+    private struct SetGroup: Identifiable {
+        let id: String
+        let title: String
+        let categoryId: String?
+        let sets: [LocalLibraryStore.SampleSet]
+    }
+
+    private func setGroups() -> [SetGroup] {
+        var groups: [SetGroup] = []
+        let uncategorized = store.sets.filter { $0.categoryId == nil }
+            .sorted { $0.sortIndex < $1.sortIndex }
+        if !uncategorized.isEmpty {
+            groups.append(SetGroup(id: "uncategorized", title: "未分类", categoryId: nil, sets: uncategorized))
+        }
+        for category in categoriesSorted() {
+            let sets = store.sets.filter { $0.categoryId == category.id }
+                .sorted { $0.sortIndex < $1.sortIndex }
+            if !sets.isEmpty {
+                groups.append(SetGroup(id: category.id, title: category.name, categoryId: category.id, sets: sets))
+            }
+        }
+        return groups
+    }
+
     private func moveCategory(category: LocalLibraryStore.DisplayCategory, direction: Int) {
         let categories = categoriesSorted()
         guard let index = categories.firstIndex(where: { $0.id == category.id }) else { return }
@@ -327,9 +345,10 @@ struct LibraryView: View {
     }
 
     private func setThumbnailView(set: LocalLibraryStore.SampleSet) -> some View {
-        let mainID = set.mainPhotoID.isEmpty ? set.photoIDsOrdered.first : set.mainPhotoID
-        if let mainID,
-           let item = store.items.first(where: { $0.id == mainID }),
+        let preferredID = set.coverPhotoID
+            ?? (set.mainPhotoID.isEmpty ? set.photoIDsOrdered.first : set.mainPhotoID)
+        if let preferredID,
+           let item = store.items.first(where: { $0.id == preferredID }),
            let image = store.thumbnail(at: item.thumbPath) ?? store.image(at: item.photoPath) {
             return AnyView(
                 Image(uiImage: image)
@@ -352,6 +371,8 @@ private struct SetDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showAddPhotos = false
     @State private var selectedAddPhotoIDs: Set<String> = []
+    @State private var showRenameSetPrompt = false
+    @State private var renameSetTitle: String = ""
 
     var body: some View {
         let set = store.sets.first(where: { $0.id == setID })
@@ -389,8 +410,12 @@ private struct SetDetailView: View {
                         SetPhotoRow(store: store,
                                     item: item,
                                     isMain: item.id == set.mainPhotoID,
+                                    isCover: item.id == set.coverPhotoID,
                                     onSetMain: {
                                         store.setMainPhoto(setID: set.id, photoID: item.id)
+                                    },
+                                    onSetCover: {
+                                        store.setCoverPhoto(setId: set.id, photoId: item.id)
                                     })
                         .swipeActions(edge: .trailing) {
                             Button("移出套图", role: .destructive) {
@@ -415,6 +440,10 @@ private struct SetDetailView: View {
                 EditButton()
             }
             ToolbarItemGroup(placement: .navigationBarTrailing) {
+                Button("Edit Title") {
+                    renameSetTitle = store.sets.first(where: { $0.id == setID })?.title ?? ""
+                    showRenameSetPrompt = true
+                }
                 Button("Add Photos") {
                     selectedAddPhotoIDs.removeAll()
                     showAddPhotos = true
@@ -480,6 +509,13 @@ private struct SetDetailView: View {
                 }
             }
         }
+        .alert("Edit Title", isPresented: $showRenameSetPrompt) {
+            TextField("Title", text: $renameSetTitle)
+            Button("Save") {
+                store.renameSet(setId: setID, title: renameSetTitle)
+            }
+            Button("Cancel", role: .cancel) {}
+        }
         .listStyle(.insetGrouped)
         .background(Color(.systemGroupedBackground))
     }
@@ -521,7 +557,9 @@ private struct SetPhotoRow: View {
     let store: LocalLibraryStore
     let item: LocalLibraryStore.LocalLibraryItem
     let isMain: Bool
+    let isCover: Bool
     let onSetMain: () -> Void
+    let onSetCover: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
@@ -540,10 +578,17 @@ private struct SetPhotoRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Photo \(item.id.prefix(6))")
                     .font(.system(size: 13, weight: .medium, design: .rounded))
-                if isMain {
-                    Text("主图")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    if isMain {
+                        Text("主图")
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .foregroundStyle(.secondary)
+                    }
+                    if isCover {
+                        Text("封面")
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
             Spacer()
@@ -551,6 +596,12 @@ private struct SetPhotoRow: View {
                 Image(systemName: isMain ? "star.fill" : "star")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(isMain ? .primary : .secondary)
+            }
+            .buttonStyle(.plain)
+            Button(action: onSetCover) {
+                Image(systemName: isCover ? "bookmark.fill" : "bookmark")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(isCover ? .primary : .secondary)
             }
             .buttonStyle(.plain)
         }
