@@ -20,6 +20,11 @@ struct ShowcaseView: View {
     @State private var showPresetSheet = false
     @State private var showPresetNamePrompt = false
     @State private var presetName: String = ""
+    @State private var showRenamePresetPrompt = false
+    @State private var renamePresetID: String?
+    @State private var renamePresetName: String = ""
+    @State private var showDeletePresetPrompt = false
+    @State private var deletePresetID: String?
     @State private var isSlideshowPlaying = false
     @State private var slideshowTimer: Timer?
 
@@ -174,6 +179,31 @@ struct ShowcaseView: View {
             }
             Button("Cancel", role: .cancel) {
                 presetName = ""
+            }
+        }
+        .alert("重命名预设", isPresented: $showRenamePresetPrompt) {
+            TextField("Name", text: $renamePresetName)
+            Button("Save") {
+                let name = renamePresetName.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard let id = renamePresetID, !name.isEmpty else { return }
+                store.renamePreset(id: id, name: name)
+                renamePresetID = nil
+                renamePresetName = ""
+            }
+            Button("Cancel", role: .cancel) {
+                renamePresetID = nil
+                renamePresetName = ""
+            }
+        }
+        .alert("删除预设？", isPresented: $showDeletePresetPrompt) {
+            Button("Delete", role: .destructive) {
+                if let id = deletePresetID {
+                    store.deletePreset(id: id)
+                }
+                deletePresetID = nil
+            }
+            Button("Cancel", role: .cancel) {
+                deletePresetID = nil
             }
         }
         .onChange(of: isFullscreen) { value in
@@ -346,7 +376,10 @@ struct ShowcaseView: View {
     }
 
     private var presetSheet: some View {
-        let presets = store.presets.sorted { $0.createdAt < $1.createdAt }
+        let presets = store.presets.sorted {
+            if $0.isPinned != $1.isPinned { return $0.isPinned && !$1.isPinned }
+            return $0.createdAt > $1.createdAt
+        }
         return NavigationStack {
             List {
                 Section {
@@ -376,6 +409,25 @@ struct ShowcaseView: View {
                                             .foregroundStyle(.secondary)
                                     }
                                     Spacer()
+                                    if preset.isPinned {
+                                        Image(systemName: "pin.fill")
+                                            .font(.system(size: 12, weight: .semibold))
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
+                            .contextMenu {
+                                Button(preset.isPinned ? "取消置顶" : "置顶") {
+                                    store.togglePinPreset(id: preset.id)
+                                }
+                                Button("重命名") {
+                                    renamePresetID = preset.id
+                                    renamePresetName = preset.name
+                                    showRenamePresetPrompt = true
+                                }
+                                Button("删除", role: .destructive) {
+                                    deletePresetID = preset.id
+                                    showDeletePresetPrompt = true
                                 }
                             }
                         }
