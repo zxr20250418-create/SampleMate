@@ -11,6 +11,7 @@ struct ContentView: View {
     @State private var showShowcase: Bool = false
     @State private var showSettings: Bool = false
     @State private var showLibrary: Bool = false
+    @AppStorage("onsiteModeEnabled") private var onsiteModeEnabled: Bool = false
 
     @StateObject private var libraryStore = LocalLibraryStore()
 
@@ -70,8 +71,10 @@ struct ContentView: View {
                 ActionChip(title: "home.action.showcase", systemImage: "play.rectangle") {
                     showShowcase = true
                 }
-                ActionChip(title: "Library", systemImage: "photo.on.rectangle.angled") {
-                    showLibrary = true
+                if !onsiteModeEnabled {
+                    ActionChip(title: "Library", systemImage: "photo.on.rectangle.angled") {
+                        showLibrary = true
+                    }
                 }
                 ActionChip(title: "home.action.settings", systemImage: "gearshape") {
                     showSettings = true
