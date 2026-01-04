@@ -350,6 +350,8 @@ private struct SetDetailView: View {
     @ObservedObject var store: LocalLibraryStore
     let setID: String
     @Environment(\.dismiss) private var dismiss
+    @State private var showAddPhotos = false
+    @State private var selectedAddPhotoIDs: Set<String> = []
 
     var body: some View {
         ScrollView {
@@ -393,6 +395,8 @@ private struct SetDetailView: View {
                                      item: item,
                                      isMain: item.id == set.mainPhotoID) {
                             store.setMainPhoto(setID: set.id, photoID: item.id)
+                        } onRemove: {
+                            store.removePhotoFromSet(setId: set.id, photoId: item.id)
                         }
                     }
                 }
@@ -407,9 +411,72 @@ private struct SetDetailView: View {
         }
         .navigationTitle(store.sets.first(where: { $0.id == setID })?.title ?? "Set")
         .toolbar {
-            Button("Delete Set", role: .destructive) {
-                store.deleteSet(setID: setID)
-                dismiss()
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button("Add Photos") {
+                    selectedAddPhotoIDs.removeAll()
+                    showAddPhotos = true
+                }
+            }
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button("Delete Set", role: .destructive) {
+                    store.deleteSet(setID: setID)
+                    dismiss()
+                }
+            }
+        }
+        .sheet(isPresented: $showAddPhotos) {
+            NavigationStack {
+                let set = store.sets.first(where: { $0.id == setID })
+                let existingIDs = Set(set?.photoIDsOrdered ?? [])
+                List {
+                    ForEach(store.items) { item in
+                        let isExisting = existingIDs.contains(item.id)
+                        let isSelected = selectedAddPhotoIDs.contains(item.id)
+                        Button {
+                            if isSelected {
+                                selectedAddPhotoIDs.remove(item.id)
+                            } else {
+                                selectedAddPhotoIDs.insert(item.id)
+                            }
+                        } label: {
+                            HStack(spacing: 12) {
+                                addPhotoRowThumbnail(item)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Photo \(item.id.prefix(6))")
+                                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                                    if isExisting {
+                                        Text("已在套图")
+                                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                                Spacer()
+                                if isSelected {
+                                    Image(systemName: "checkmark")
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(isExisting)
+                    }
+                }
+                .navigationTitle("Add Photos")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Add") {
+                            store.addPhotosToSet(setId: setID, photoIds: Array(selectedAddPhotoIDs))
+                            showAddPhotos = false
+                        }
+                        .disabled(selectedAddPhotoIDs.isEmpty)
+                    }
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") {
+                            showAddPhotos = false
+                        }
+                    }
+                }
             }
         }
         .background(Color(.systemGroupedBackground))
@@ -430,6 +497,22 @@ private struct SetDetailView: View {
             store.assignTagToSet(setID: setID, tagID: tagID)
         }
     }
+
+    @ViewBuilder
+    private func addPhotoRowThumbnail(_ item: LocalLibraryStore.LocalLibraryItem) -> some View {
+        if let image = store.thumbnail(at: item.thumbPath) ?? store.image(at: item.photoPath) {
+            Image(uiImage: image)
+                .resizable()
+                .aspectRatio(2.0 / 3.0, contentMode: .fit)
+                .frame(width: 44)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+        } else {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.gray.opacity(0.12))
+                .aspectRatio(2.0 / 3.0, contentMode: .fit)
+                .frame(width: 44)
+        }
+    }
 }
 
 private struct SetPhotoCell: View {
@@ -437,6 +520,7 @@ private struct SetPhotoCell: View {
     let item: LocalLibraryStore.LocalLibraryItem
     let isMain: Bool
     let onSelect: () -> Void
+    let onRemove: () -> Void
 
     var body: some View {
         Button(action: onSelect) {
@@ -455,5 +539,19 @@ private struct SetPhotoCell: View {
         .buttonStyle(.plain)
         .overlay(RoundedRectangle(cornerRadius: 12)
             .stroke(isMain ? Color.primary.opacity(0.9) : .clear, lineWidth: 2))
+        .overlay(alignment: .topLeading) {
+            if isMain {
+                Image(systemName: "star.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                    .padding(6)
+                    .background(.white.opacity(0.9), in: Circle())
+                    .padding(6)
+            }
+        }
+        .contextMenu {
+            Button("移出套图", role: .destructive) {
+                onRemove()
+            }
+        }
     }
 }

@@ -282,6 +282,35 @@ final class LocalLibraryStore: ObservableObject {
         }
     }
 
+    @MainActor
+    func addPhotosToSet(setId: String, photoIds: [String]) {
+        guard let idx = sets.firstIndex(where: { $0.id == setId }) else { return }
+        let validIds = photoIds.filter { id in items.contains { $0.id == id } }
+        var updated = sets[idx]
+        var ordered = updated.photoIDsOrdered
+        for id in validIds where !ordered.contains(id) {
+            ordered.append(id)
+        }
+        updated.photoIDsOrdered = ordered
+        if updated.mainPhotoID.isEmpty || !ordered.contains(updated.mainPhotoID) {
+            updated.mainPhotoID = ordered.first ?? ""
+        }
+        sets[idx] = updated
+        persistSets()
+    }
+
+    @MainActor
+    func removePhotoFromSet(setId: String, photoId: String) {
+        guard let idx = sets.firstIndex(where: { $0.id == setId }) else { return }
+        var updated = sets[idx]
+        updated.photoIDsOrdered.removeAll { $0 == photoId }
+        if updated.mainPhotoID == photoId || !updated.photoIDsOrdered.contains(updated.mainPhotoID) {
+            updated.mainPhotoID = updated.photoIDsOrdered.first ?? ""
+        }
+        sets[idx] = updated
+        persistSets()
+    }
+
     func deleteSet(setID: String) {
         Task {
             await MainActor.run {
