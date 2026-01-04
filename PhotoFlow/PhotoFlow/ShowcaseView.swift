@@ -13,6 +13,8 @@ struct ShowcaseView: View {
     @State private var categoryIndex = 0
     @State private var setIndex = 0
     @State private var photoIndex = 0
+    @State private var selectedTagId: String?
+    @State private var showTagSheet = false
     @State private var isSlideshowPlaying = false
     @State private var slideshowTimer: Timer?
 
@@ -40,7 +42,8 @@ struct ShowcaseView: View {
         let setsForCategory = usesCategories
             ? store.sets.filter { $0.categoryId == activeCategory?.id }
             : store.sets
-        let activeSet = setsForCategory[safe: setIndex]
+        let filteredSets = filterSetsByTag(setsForCategory)
+        let activeSet = filteredSets[safe: setIndex]
         let setPhotoItems = activeSet?.photoIDsOrdered.compactMap { id in
             store.items.first(where: { $0.id == id })
         } ?? []
@@ -60,7 +63,8 @@ struct ShowcaseView: View {
             : (usesLocal ? "Imported Photos" : (demoSet?.title ?? "Set"))
         let setNote = usesCategories || usesSets ? "" : (usesLocal ? "From your Photos library." : (demoSet?.note ?? ""))
         let priceText = usesCategories || usesSets || usesLocal ? "" : (demoSet?.priceText ?? "")
-        let categoryEmpty = usesCategories && setsForCategory.isEmpty
+        let categoryEmpty = (usesCategories || usesSets) && filteredSets.isEmpty
+        let selectedTagName = tagName(for: selectedTagId)
 
         GeometryReader { proxy in
             let size = proxy.size
@@ -71,7 +75,10 @@ struct ShowcaseView: View {
                 Color(.systemGroupedBackground).ignoresSafeArea()
                 VStack(spacing: 16) {
                     if !isFullscreen {
-                        headerBar(categoryName: categoryName, setTitle: setTitle, photosCount: displayPhotos.count)
+                        headerBar(categoryName: categoryName,
+                                  setTitle: setTitle,
+                                  tagTitle: selectedTagName,
+                                  photosCount: displayPhotos.count)
                             .padding(.horizontal, 20)
                     }
 
@@ -102,7 +109,10 @@ struct ShowcaseView: View {
                     .padding(.horizontal, 20)
                     .overlay(alignment: .top) {
                         if isFullscreen && overlaysVisible {
-                            headerBar(categoryName: categoryName, setTitle: setTitle, photosCount: displayPhotos.count)
+                            headerBar(categoryName: categoryName,
+                                      setTitle: setTitle,
+                                      tagTitle: selectedTagName,
+                                      photosCount: displayPhotos.count)
                                 .padding(.horizontal, 12)
                                 .padding(.top, 12)
                                 .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
@@ -133,6 +143,9 @@ struct ShowcaseView: View {
             }
         }
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showTagSheet) {
+            tagPickerSheet
+        }
         .onChange(of: isFullscreen) { value in
             if value {
                 if slideshowEnabled { startSlideshow(photosCount: displayPhotos.count) }
@@ -152,42 +165,95 @@ struct ShowcaseView: View {
         .onChange(of: store.items.count) { _ in
             if photoIndex >= displayPhotos.count { photoIndex = 0 }
         }
+        .onChange(of: selectedTagId) { _ in
+            let categories = categoriesSorted()
+            let setsForCategory = !categories.isEmpty
+                ? store.sets.filter { $0.categoryId == categories[safe: categoryIndex]?.id }
+                : store.sets
+            let filteredSets = filterSetsByTag(setsForCategory)
+            setIndex = 0
+            syncPhotoIndex(mainID: filteredSets.first?.mainPhotoID,
+                           photos: displayPhotosForSet(filteredSets.first))
+        }
         .onChange(of: store.categories) { _ in
             let categories = categoriesSorted()
             if categoryIndex >= categories.count { categoryIndex = 0 }
             if !categories.isEmpty {
                 let setsForCategory = store.sets.filter { $0.categoryId == categories[safe: categoryIndex]?.id }
+                let filteredSets = filterSetsByTag(setsForCategory)
                 setIndex = 0
-                syncPhotoIndex(mainID: setsForCategory.first?.mainPhotoID,
-                               photos: displayPhotosForSet(setsForCategory.first))
+                syncPhotoIndex(mainID: filteredSets.first?.mainPhotoID,
+                               photos: displayPhotosForSet(filteredSets.first))
             }
         }
         .onChange(of: categoryIndex) { _ in
             let categories = categoriesSorted()
             if !categories.isEmpty {
                 let setsForCategory = store.sets.filter { $0.categoryId == categories[safe: categoryIndex]?.id }
+                let filteredSets = filterSetsByTag(setsForCategory)
                 setIndex = 0
-                syncPhotoIndex(mainID: setsForCategory.first?.mainPhotoID,
-                               photos: displayPhotosForSet(setsForCategory.first))
+                syncPhotoIndex(mainID: filteredSets.first?.mainPhotoID,
+                               photos: displayPhotosForSet(filteredSets.first))
             }
         }
         .onChange(of: store.sets) { _ in
             let categories = categoriesSorted()
             if !categories.isEmpty {
                 let setsForCategory = store.sets.filter { $0.categoryId == categories[safe: categoryIndex]?.id }
-                if setIndex >= setsForCategory.count { setIndex = 0 }
-                let activeSet = setsForCategory[safe: setIndex]
+                let filteredSets = filterSetsByTag(setsForCategory)
+                if setIndex >= filteredSets.count { setIndex = 0 }
+                let activeSet = filteredSets[safe: setIndex]
                 syncPhotoIndex(mainID: activeSet?.mainPhotoID,
                                photos: displayPhotosForSet(activeSet))
             } else if !store.sets.isEmpty {
-                if setIndex >= store.sets.count { setIndex = 0 }
-                syncPhotoIndex(mainID: store.sets[safe: setIndex]?.mainPhotoID,
-                               photos: displayPhotosForSet(store.sets[safe: setIndex]))
+                let filteredSets = filterSetsByTag(store.sets)
+                if setIndex >= filteredSets.count { setIndex = 0 }
+                let activeSet = filteredSets[safe: setIndex]
+                syncPhotoIndex(mainID: activeSet?.mainPhotoID,
+                               photos: displayPhotosForSet(activeSet))
             }
         }
     }
 
-    private func headerBar(categoryName: String, setTitle: String, photosCount: Int) -> some View {
+    private var tagPickerSheet: some View {
+        let tags = store.tags.sorted { $0.sortIndex < $1.sortIndex }
+        return NavigationStack {
+            List {
+                Button {
+                    selectedTagId = nil
+                    showTagSheet = false
+                } label: {
+                    HStack {
+                        Text("全部")
+                        Spacer()
+                        if selectedTagId == nil {
+                            Image(systemName: "checkmark")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                ForEach(tags) { tag in
+                    Button {
+                        selectedTagId = tag.id
+                        showTagSheet = false
+                    } label: {
+                        HStack {
+                            Text(tag.name)
+                            Spacer()
+                            if selectedTagId == tag.id {
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("选择标签")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+
+    private func headerBar(categoryName: String, setTitle: String, tagTitle: String, photosCount: Int) -> some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(categoryName)
@@ -197,6 +263,15 @@ struct ShowcaseView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
+            Button {
+                showTagSheet = true
+            } label: {
+                Text("标签：\(tagTitle)")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .padding(.horizontal, 10).padding(.vertical, 6)
+                    .background(.white.opacity(0.9), in: Capsule())
+            }
+            .buttonStyle(.plain)
             if isFullscreen {
                 Button {
                     if isSlideshowPlaying { pauseSlideshow() }
@@ -245,9 +320,9 @@ struct ShowcaseView: View {
             .frame(maxWidth: .infinity, maxHeight: height, alignment: .center)
             .overlay(
                 VStack(spacing: 6) {
-                    Text("该分类暂无套图")
+                    Text("暂无匹配套图")
                         .font(.system(size: 15, weight: .semibold, design: .rounded))
-                    Text("上下滑动切换分类")
+                    Text("请切换标签或分类")
                         .font(.system(size: 12, weight: .medium, design: .rounded))
                         .foregroundStyle(.secondary)
                 }
@@ -385,9 +460,10 @@ struct ShowcaseView: View {
             let c = categories.count
             categoryIndex = (categoryIndex + d + c) % c
             let setsForCategory = store.sets.filter { $0.categoryId == categories[safe: categoryIndex]?.id }
+            let filteredSets = filterSetsByTag(setsForCategory)
             setIndex = 0
-            syncPhotoIndex(mainID: setsForCategory.first?.mainPhotoID,
-                           photos: displayPhotosForSet(setsForCategory.first))
+            syncPhotoIndex(mainID: filteredSets.first?.mainPhotoID,
+                           photos: displayPhotosForSet(filteredSets.first))
             return
         }
         if !store.sets.isEmpty { return }
@@ -401,19 +477,22 @@ struct ShowcaseView: View {
         let categories = categoriesSorted()
         if !categories.isEmpty {
             let setsForCategory = store.sets.filter { $0.categoryId == categories[safe: categoryIndex]?.id }
-            let s = setsForCategory.count
+            let filteredSets = filterSetsByTag(setsForCategory)
+            let s = filteredSets.count
             if s == 0 { return }
             setIndex = (setIndex + d + s) % s
-            let activeSet = setsForCategory[safe: setIndex]
+            let activeSet = filteredSets[safe: setIndex]
             syncPhotoIndex(mainID: activeSet?.mainPhotoID, photos: displayPhotosForSet(activeSet))
             return
         }
         if !store.sets.isEmpty {
-            let s = store.sets.count
+            let filteredSets = filterSetsByTag(store.sets)
+            let s = filteredSets.count
             if s == 0 { return }
             setIndex = (setIndex + d + s) % s
-            syncPhotoIndex(mainID: store.sets[safe: setIndex]?.mainPhotoID,
-                           photos: displayPhotosForSet(store.sets[safe: setIndex]))
+            let activeSet = filteredSets[safe: setIndex]
+            syncPhotoIndex(mainID: activeSet?.mainPhotoID,
+                           photos: displayPhotosForSet(activeSet))
             return
         }
         let s = catalog.categories[categoryIndex].sets.count
@@ -423,6 +502,18 @@ struct ShowcaseView: View {
 
     private func categoriesSorted() -> [LocalLibraryStore.DisplayCategory] {
         store.categories.sorted { $0.sortIndex < $1.sortIndex }
+    }
+
+    private func filterSetsByTag(_ sets: [LocalLibraryStore.SampleSet]) -> [LocalLibraryStore.SampleSet] {
+        guard let selectedTagId else { return sets }
+        return sets.filter { set in
+            store.setTagLinks.contains { $0.setId == set.id && $0.tagId == selectedTagId }
+        }
+    }
+
+    private func tagName(for tagId: String?) -> String {
+        guard let tagId else { return "全部" }
+        return store.tags.first(where: { $0.id == tagId })?.name ?? "全部"
     }
 
     private func displayPhotosForSet(_ set: LocalLibraryStore.SampleSet?) -> [DisplayPhoto] {
