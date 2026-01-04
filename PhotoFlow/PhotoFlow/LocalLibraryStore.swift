@@ -32,6 +32,24 @@ final class LocalLibraryStore: ObservableObject {
             case createdAt
         }
 
+        init(id: String,
+             title: String,
+             photoIDsOrdered: [String],
+             mainPhotoID: String,
+             coverPhotoID: String?,
+             categoryId: String?,
+             sortIndex: Int,
+             createdAt: Date) {
+            self.id = id
+            self.title = title
+            self.photoIDsOrdered = photoIDsOrdered
+            self.mainPhotoID = mainPhotoID
+            self.coverPhotoID = coverPhotoID
+            self.categoryId = categoryId
+            self.sortIndex = sortIndex
+            self.createdAt = createdAt
+        }
+
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             id = try container.decode(String.self, forKey: .id)
