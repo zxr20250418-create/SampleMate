@@ -16,8 +16,48 @@ final class LocalLibraryStore: ObservableObject {
         var title: String
         var photoIDsOrdered: [String]
         var mainPhotoID: String
+        var coverPhotoID: String?
         var categoryId: String?
+        var sortIndex: Int
         let createdAt: Date
+
+        private enum CodingKeys: String, CodingKey {
+            case id
+            case title
+            case photoIDsOrdered
+            case mainPhotoID
+            case coverPhotoID
+            case categoryId
+            case sortIndex
+            case createdAt
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            id = try container.decode(String.self, forKey: .id)
+            title = try container.decode(String.self, forKey: .title)
+            photoIDsOrdered = try container.decodeIfPresent([String].self, forKey: .photoIDsOrdered) ?? []
+            mainPhotoID = try container.decodeIfPresent(String.self, forKey: .mainPhotoID) ?? ""
+            coverPhotoID = try container.decodeIfPresent(String.self, forKey: .coverPhotoID)
+            categoryId = try container.decodeIfPresent(String.self, forKey: .categoryId)
+            sortIndex = try container.decodeIfPresent(Int.self, forKey: .sortIndex) ?? -1
+            createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
+            if coverPhotoID == nil {
+                coverPhotoID = mainPhotoID.isEmpty ? photoIDsOrdered.first : mainPhotoID
+            }
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(id, forKey: .id)
+            try container.encode(title, forKey: .title)
+            try container.encode(photoIDsOrdered, forKey: .photoIDsOrdered)
+            try container.encode(mainPhotoID, forKey: .mainPhotoID)
+            try container.encodeIfPresent(coverPhotoID, forKey: .coverPhotoID)
+            try container.encodeIfPresent(categoryId, forKey: .categoryId)
+            try container.encode(sortIndex, forKey: .sortIndex)
+            try container.encode(createdAt, forKey: .createdAt)
+        }
     }
 
     struct DisplayCategory: Codable, Identifiable, Equatable {
@@ -108,11 +148,14 @@ final class LocalLibraryStore: ObservableObject {
     func createSet(title: String, photoIDs: [String]) -> SampleSet {
         let normalized = photoIDs.filter { id in items.contains { $0.id == id } }
         let mainID = normalized.first ?? ""
+        let nextIndex = (sets.filter { $0.categoryId == nil }.map { $0.sortIndex }.max() ?? -1) + 1
         let set = SampleSet(id: UUID().uuidString,
                             title: title,
                             photoIDsOrdered: normalized,
                             mainPhotoID: mainID,
+                            coverPhotoID: mainID.isEmpty ? nil : mainID,
                             categoryId: nil,
+                            sortIndex: nextIndex,
                             createdAt: Date())
         Task {
             await MainActor.run {
@@ -190,6 +233,8 @@ final class LocalLibraryStore: ObservableObject {
             await MainActor.run {
                 guard let idx = sets.firstIndex(where: { $0.id == setID }) else { return }
                 sets[idx].categoryId = categoryID
+                let nextIndex = (sets.filter { $0.categoryId == categoryID }.map { $0.sortIndex }.max() ?? -1) + 1
+                sets[idx].sortIndex = nextIndex
             }
             await MainActor.run {
                 persistSets()
@@ -283,6 +328,41 @@ final class LocalLibraryStore: ObservableObject {
     }
 
     @MainActor
+    func renameSet(setId: String, title: String) {
+        guard let idx = sets.firstIndex(where: { $0.id == setId }) else { return }
+        var updated = sets[idx]
+        updated.title = title
+        sets[idx] = updated
+        persistSets()
+    }
+
+    @MainActor
+    func setCoverPhoto(setId: String, photoId: String) {
+        guard let idx = sets.firstIndex(where: { $0.id == setId }) else { return }
+        var updated = sets[idx]
+        updated.coverPhotoID = photoId
+        sets[idx] = updated
+        persistSets()
+    }
+
+    @MainActor
+    func reorderSets(categoryId: String?, fromOffsets: IndexSet, toOffset: Int) {
+        let grouped = sets.filter { $0.categoryId == categoryId }.sorted { $0.sortIndex < $1.sortIndex }
+        guard !grouped.isEmpty else { return }
+        var reordered = grouped
+        reordered.move(fromOffsets: fromOffsets, toOffset: toOffset)
+        for idx in reordered.indices {
+            reordered[idx].sortIndex = idx
+        }
+        for updated in reordered {
+            if let index = sets.firstIndex(where: { $0.id == updated.id }) {
+                sets[index] = updated
+            }
+        }
+        persistSets()
+    }
+
+    @MainActor
     func reorderPhotosInSet(setId: String, fromOffsets: IndexSet, toOffset: Int) {
         guard let idx = sets.firstIndex(where: { $0.id == setId }) else { return }
         var updated = sets[idx]
@@ -315,6 +395,9 @@ final class LocalLibraryStore: ObservableObject {
         updated.photoIDsOrdered.removeAll { $0 == photoId }
         if updated.mainPhotoID == photoId || !updated.photoIDsOrdered.contains(updated.mainPhotoID) {
             updated.mainPhotoID = updated.photoIDsOrdered.first ?? ""
+        }
+        if updated.coverPhotoID == photoId {
+            updated.coverPhotoID = updated.photoIDsOrdered.first
         }
         sets[idx] = updated
         persistSets()
@@ -402,9 +485,32 @@ final class LocalLibraryStore: ObservableObject {
             }
             return
         }
+        let normalized = normalizeSetSortIndex(decoded)
         await MainActor.run {
-            sets = decoded
+            sets = normalized
         }
+    }
+
+    private func normalizeSetSortIndex(_ input: [SampleSet]) -> [SampleSet] {
+        var output = input
+        let grouped = Dictionary(grouping: output, by: { $0.categoryId })
+        var updatedIDs: [String: Int] = [:]
+        for (categoryId, group) in grouped {
+            if group.allSatisfy({ $0.sortIndex >= 0 }) {
+                continue
+            }
+            let ordered = group.sorted { $0.createdAt < $1.createdAt }
+            for (idx, set) in ordered.enumerated() {
+                updatedIDs[set.id] = idx
+            }
+        }
+        guard !updatedIDs.isEmpty else { return output }
+        for idx in output.indices {
+            if let newIndex = updatedIDs[output[idx].id] {
+                output[idx].sortIndex = newIndex
+            }
+        }
+        return output
     }
 
     private func loadCategories() async {
