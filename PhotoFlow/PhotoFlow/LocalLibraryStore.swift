@@ -217,7 +217,7 @@ final class LocalLibraryStore: ObservableObject {
     func moveCategory(fromOffsets: IndexSet, toOffset: Int) {
         Task {
             await MainActor.run {
-                categories.move(fromOffsets: fromOffsets, toOffset: toOffset)
+                categories = reordered(categories, fromOffsets: fromOffsets, toOffset: toOffset)
                 for idx in categories.indices {
                     categories[idx].sortIndex = idx
                 }
@@ -349,12 +349,15 @@ final class LocalLibraryStore: ObservableObject {
     func reorderSets(categoryId: String?, fromOffsets: IndexSet, toOffset: Int) {
         let grouped = sets.filter { $0.categoryId == categoryId }.sorted { $0.sortIndex < $1.sortIndex }
         guard !grouped.isEmpty else { return }
-        var reordered = grouped
-        reordered.move(fromOffsets: fromOffsets, toOffset: toOffset)
-        for idx in reordered.indices {
-            reordered[idx].sortIndex = idx
+        let reorderedGroup = reordered(grouped, fromOffsets: fromOffsets, toOffset: toOffset)
+        var updatedGroup: [SampleSet] = []
+        updatedGroup.reserveCapacity(reorderedGroup.count)
+        for (idx, set) in reorderedGroup.enumerated() {
+            var updated = set
+            updated.sortIndex = idx
+            updatedGroup.append(updated)
         }
-        for updated in reordered {
+        for updated in updatedGroup {
             if let index = sets.firstIndex(where: { $0.id == updated.id }) {
                 sets[index] = updated
             }
@@ -366,7 +369,7 @@ final class LocalLibraryStore: ObservableObject {
     func reorderPhotosInSet(setId: String, fromOffsets: IndexSet, toOffset: Int) {
         guard let idx = sets.firstIndex(where: { $0.id == setId }) else { return }
         var updated = sets[idx]
-        updated.photoIDsOrdered.move(fromOffsets: fromOffsets, toOffset: toOffset)
+        updated.photoIDsOrdered = reordered(updated.photoIDsOrdered, fromOffsets: fromOffsets, toOffset: toOffset)
         sets[idx] = updated
         persistSets()
     }
@@ -491,11 +494,26 @@ final class LocalLibraryStore: ObservableObject {
         }
     }
 
+    private func reordered<T>(_ array: [T], fromOffsets: IndexSet, toOffset: Int) -> [T] {
+        guard !fromOffsets.isEmpty else { return array }
+        let moving = fromOffsets.sorted().map { array[$0] }
+        var result = array
+        for idx in fromOffsets.sorted(by: >) {
+            result.remove(at: idx)
+        }
+        let removedBefore = fromOffsets.filter { $0 < toOffset }.count
+        var destination = toOffset - removedBefore
+        if destination < 0 { destination = 0 }
+        if destination > result.count { destination = result.count }
+        result.insert(contentsOf: moving, at: destination)
+        return result
+    }
+
     private func normalizeSetSortIndex(_ input: [SampleSet]) -> [SampleSet] {
         var output = input
         let grouped = Dictionary(grouping: output, by: { $0.categoryId })
         var updatedIDs: [String: Int] = [:]
-        for (categoryId, group) in grouped {
+        for (_, group) in grouped {
             if group.allSatisfy({ $0.sortIndex >= 0 }) {
                 continue
             }
