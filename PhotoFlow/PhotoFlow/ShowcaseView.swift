@@ -7,6 +7,8 @@ struct ShowcaseView: View {
     @AppStorage("compactTextVisible") private var compactTextVisible: Bool = true
     @AppStorage("slideshowEnabled") private var slideshowEnabled: Bool = false
     @AppStorage("slideshowIntervalSeconds") private var slideshowIntervalSeconds: Int = 5
+    @AppStorage("showcaseTagFilterMode") private var filterModeRaw: String = FilterMode.or.rawValue
+    @AppStorage("showcaseTagFilterIds") private var selectedTagIdsRaw: String = ""
 
     @State private var isFullscreen = false
     @State private var overlaysVisible = true
@@ -31,6 +33,11 @@ struct ShowcaseView: View {
     private enum PhotoSource {
         case local(LocalLibraryStore.Item)
         case demo(ShowcaseDemoPhoto)
+    }
+
+    private enum FilterMode: String {
+        case or
+        case and
     }
 
     var body: some View {
@@ -143,6 +150,9 @@ struct ShowcaseView: View {
             }
         }
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            syncSelectedTagsFromStorage()
+        }
         .sheet(isPresented: $showTagSheet) {
             tagPickerSheet
         }
@@ -166,14 +176,11 @@ struct ShowcaseView: View {
             if photoIndex >= displayPhotos.count { photoIndex = 0 }
         }
         .onChange(of: selectedTagIds) { _ in
-            let categories = categoriesSorted()
-            let setsForCategory = !categories.isEmpty
-                ? store.sets.filter { $0.categoryId == categories[safe: categoryIndex]?.id }
-                : store.sets
-            let filteredSets = filterSetsByTag(setsForCategory)
-            setIndex = 0
-            syncPhotoIndex(mainID: filteredSets.first?.mainPhotoID,
-                           photos: displayPhotosForSet(filteredSets.first))
+            selectedTagIdsRaw = selectedTagIds.sorted().joined(separator: ",")
+            applyTagFilterSelection()
+        }
+        .onChange(of: filterModeRaw) { _ in
+            applyTagFilterSelection()
         }
         .onChange(of: store.categories) { _ in
             let categories = categoriesSorted()
@@ -219,6 +226,16 @@ struct ShowcaseView: View {
         let tags = store.tags.sorted { $0.sortIndex < $1.sortIndex }
         return NavigationStack {
             List {
+                Section {
+                    Picker("筛选模式", selection: Binding(
+                        get: { filterMode },
+                        set: { filterModeRaw = $0.rawValue }
+                    )) {
+                        Text("OR").tag(FilterMode.or)
+                        Text("AND").tag(FilterMode.and)
+                    }
+                    .pickerStyle(.segmented)
+                }
                 Button {
                     selectedTagIds.removeAll()
                 } label: {
@@ -507,10 +524,38 @@ struct ShowcaseView: View {
         store.categories.sorted { $0.sortIndex < $1.sortIndex }
     }
 
+    private var filterMode: FilterMode {
+        FilterMode(rawValue: filterModeRaw) ?? .or
+    }
+
+    private func syncSelectedTagsFromStorage() {
+        let ids = selectedTagIdsRaw.split(separator: ",").map { String($0) }.filter { !$0.isEmpty }
+        selectedTagIds = Set(ids)
+    }
+
+    private func applyTagFilterSelection() {
+        let categories = categoriesSorted()
+        let setsForCategory = !categories.isEmpty
+            ? store.sets.filter { $0.categoryId == categories[safe: categoryIndex]?.id }
+            : store.sets
+        let filteredSets = filterSetsByTag(setsForCategory)
+        setIndex = 0
+        syncPhotoIndex(mainID: filteredSets.first?.mainPhotoID,
+                       photos: displayPhotosForSet(filteredSets.first))
+    }
+
     private func filterSetsByTag(_ sets: [LocalLibraryStore.SampleSet]) -> [LocalLibraryStore.SampleSet] {
         guard !selectedTagIds.isEmpty else { return sets }
-        return sets.filter { set in
-            store.setTagLinks.contains { $0.setId == set.id && selectedTagIds.contains($0.tagId) }
+        switch filterMode {
+        case .or:
+            return sets.filter { set in
+                store.setTagLinks.contains { $0.setId == set.id && selectedTagIds.contains($0.tagId) }
+            }
+        case .and:
+            return sets.filter { set in
+                let linkedTagIds = Set(store.setTagLinks.filter { $0.setId == set.id }.map { $0.tagId })
+                return selectedTagIds.allSatisfy { linkedTagIds.contains($0) }
+            }
         }
     }
 
