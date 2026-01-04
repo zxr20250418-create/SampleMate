@@ -5,6 +5,7 @@ struct PR1SettingsView: View {
     @AppStorage("compactTextVisible") private var compactTextVisible = true
     @AppStorage("slideshowEnabled") private var slideshowEnabled = false
     @AppStorage("slideshowIntervalSeconds") private var slideshowIntervalSeconds = 5
+    @AppStorage("onsiteModeEnabled") private var onsiteModeEnabled: Bool = false
 
     var body: some View {
         NavigationStack {
@@ -18,6 +19,10 @@ struct PR1SettingsView: View {
                     }
                 }
                 .disabled(!slideshowEnabled)
+                Toggle("现场模式", isOn: $onsiteModeEnabled)
+                Text("开启后隐藏管理入口，仅用于现场展示")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
             .navigationTitle("settings.title")
         }
