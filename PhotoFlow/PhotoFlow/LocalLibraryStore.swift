@@ -106,7 +106,51 @@ final class LocalLibraryStore: ObservableObject {
         var name: String
         var mode: String
         var tagIds: [String]
+        var isPinned: Bool
         let createdAt: Date
+
+        private enum CodingKeys: String, CodingKey {
+            case id
+            case name
+            case mode
+            case tagIds
+            case isPinned
+            case createdAt
+        }
+
+        init(id: String,
+             name: String,
+             mode: String,
+             tagIds: [String],
+             isPinned: Bool,
+             createdAt: Date) {
+            self.id = id
+            self.name = name
+            self.mode = mode
+            self.tagIds = tagIds
+            self.isPinned = isPinned
+            self.createdAt = createdAt
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            id = try container.decode(String.self, forKey: .id)
+            name = try container.decode(String.self, forKey: .name)
+            mode = try container.decode(String.self, forKey: .mode)
+            tagIds = try container.decodeIfPresent([String].self, forKey: .tagIds) ?? []
+            isPinned = try container.decodeIfPresent(Bool.self, forKey: .isPinned) ?? false
+            createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(id, forKey: .id)
+            try container.encode(name, forKey: .name)
+            try container.encode(mode, forKey: .mode)
+            try container.encode(tagIds, forKey: .tagIds)
+            try container.encode(isPinned, forKey: .isPinned)
+            try container.encode(createdAt, forKey: .createdAt)
+        }
     }
 
     typealias Item = LocalLibraryItem
@@ -461,10 +505,35 @@ final class LocalLibraryStore: ObservableObject {
                                   name: name,
                                   mode: mode,
                                   tagIds: tagIds,
+                                  isPinned: false,
                                   createdAt: Date())
         presets.append(preset)
         persistPresets()
         return preset
+    }
+
+    @MainActor
+    func renamePreset(id: String, name: String) {
+        guard let index = presets.firstIndex(where: { $0.id == id }) else { return }
+        var updated = presets[index]
+        updated.name = name
+        presets[index] = updated
+        persistPresets()
+    }
+
+    @MainActor
+    func deletePreset(id: String) {
+        presets.removeAll { $0.id == id }
+        persistPresets()
+    }
+
+    @MainActor
+    func togglePinPreset(id: String) {
+        guard let index = presets.firstIndex(where: { $0.id == id }) else { return }
+        var updated = presets[index]
+        updated.isPinned.toggle()
+        presets[index] = updated
+        persistPresets()
     }
 
     func image(at path: String) -> UIImage? {
