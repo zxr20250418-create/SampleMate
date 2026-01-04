@@ -283,6 +283,15 @@ final class LocalLibraryStore: ObservableObject {
     }
 
     @MainActor
+    func reorderPhotosInSet(setId: String, fromOffsets: IndexSet, toOffset: Int) {
+        guard let idx = sets.firstIndex(where: { $0.id == setId }) else { return }
+        var updated = sets[idx]
+        updated.photoIDsOrdered.move(fromOffsets: fromOffsets, toOffset: toOffset)
+        sets[idx] = updated
+        persistSets()
+    }
+
+    @MainActor
     func addPhotosToSet(setId: String, photoIds: [String]) {
         guard let idx = sets.firstIndex(where: { $0.id == setId }) else { return }
         let validIds = photoIds.filter { id in items.contains { $0.id == id } }
