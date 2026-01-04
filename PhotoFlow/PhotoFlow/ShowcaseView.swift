@@ -17,6 +17,9 @@ struct ShowcaseView: View {
     @State private var photoIndex = 0
     @State private var selectedTagIds: Set<String> = []
     @State private var showTagSheet = false
+    @State private var showPresetSheet = false
+    @State private var showPresetNamePrompt = false
+    @State private var presetName: String = ""
     @State private var isSlideshowPlaying = false
     @State private var slideshowTimer: Timer?
 
@@ -156,6 +159,23 @@ struct ShowcaseView: View {
         .sheet(isPresented: $showTagSheet) {
             tagPickerSheet
         }
+        .sheet(isPresented: $showPresetSheet) {
+            presetSheet
+        }
+        .alert("保存为预设", isPresented: $showPresetNamePrompt) {
+            TextField("Name", text: $presetName)
+            Button("Save") {
+                let name = presetName.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !name.isEmpty else { return }
+                _ = store.createPreset(name: name,
+                                       mode: filterMode.rawValue,
+                                       tagIds: selectedTagIds.sorted())
+                presetName = ""
+            }
+            Button("Cancel", role: .cancel) {
+                presetName = ""
+            }
+        }
         .onChange(of: isFullscreen) { value in
             if value {
                 if slideshowEnabled { startSlideshow(photosCount: displayPhotos.count) }
@@ -292,6 +312,15 @@ struct ShowcaseView: View {
                     .background(.white.opacity(0.9), in: Capsule())
             }
             .buttonStyle(.plain)
+            Button {
+                showPresetSheet = true
+            } label: {
+                Text("预设")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .padding(.horizontal, 10).padding(.vertical, 6)
+                    .background(.white.opacity(0.9), in: Capsule())
+            }
+            .buttonStyle(.plain)
             if isFullscreen {
                 Button {
                     if isSlideshowPlaying { pauseSlideshow() }
@@ -314,6 +343,48 @@ struct ShowcaseView: View {
                 .background(.white, in: Capsule())
         }
         .padding(.vertical, 8)
+    }
+
+    private var presetSheet: some View {
+        let presets = store.presets.sorted { $0.createdAt < $1.createdAt }
+        return NavigationStack {
+            List {
+                Section {
+                    Button {
+                        presetName = ""
+                        showPresetNamePrompt = true
+                    } label: {
+                        Text("保存当前为预设")
+                    }
+                }
+                Section("Presets") {
+                    if presets.isEmpty {
+                        Text("暂无预设")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(presets) { preset in
+                            Button {
+                                applyPreset(preset)
+                                showPresetSheet = false
+                            } label: {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(preset.name)
+                                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                        Text("\(preset.mode.uppercased()) · \(preset.tagIds.count) tags")
+                                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Presets")
+            .navigationBarTitleDisplayMode(.inline)
+        }
     }
 
     private func mainPhotoView(photo: DisplayPhoto, height: CGFloat, isFullscreen: Bool) -> some View {
@@ -531,6 +602,13 @@ struct ShowcaseView: View {
     private func syncSelectedTagsFromStorage() {
         let ids = selectedTagIdsRaw.split(separator: ",").map { String($0) }.filter { !$0.isEmpty }
         selectedTagIds = Set(ids)
+    }
+
+    private func applyPreset(_ preset: LocalLibraryStore.FilterPreset) {
+        filterModeRaw = preset.mode
+        selectedTagIds = Set(preset.tagIds)
+        selectedTagIdsRaw = preset.tagIds.joined(separator: ",")
+        applyTagFilterSelection()
     }
 
     private func applyTagFilterSelection() {

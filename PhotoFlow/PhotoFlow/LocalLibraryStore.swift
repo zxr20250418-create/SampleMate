@@ -101,6 +101,14 @@ final class LocalLibraryStore: ObservableObject {
         let tagId: String
     }
 
+    struct FilterPreset: Codable, Identifiable, Equatable {
+        let id: String
+        var name: String
+        var mode: String
+        var tagIds: [String]
+        let createdAt: Date
+    }
+
     typealias Item = LocalLibraryItem
 
     nonisolated let objectWillChange = ObservableObjectPublisher()
@@ -109,6 +117,7 @@ final class LocalLibraryStore: ObservableObject {
     @Published private(set) var categories: [DisplayCategory] = []
     @Published private(set) var tags: [Tag] = []
     @Published private(set) var setTagLinks: [SetTagLink] = []
+    @Published private(set) var presets: [FilterPreset] = []
 
     private let fileManager = FileManager.default
     private let photosFolderName = "Photos"
@@ -118,6 +127,7 @@ final class LocalLibraryStore: ObservableObject {
     private let categoriesFileName = "categories.json"
     private let tagsFileName = "tags.json"
     private let setTagLinksFileName = "set_tag_links.json"
+    private let presetsFileName = "presets.json"
 
     init() {
         Task {
@@ -126,6 +136,7 @@ final class LocalLibraryStore: ObservableObject {
             await loadCategories()
             await loadTags()
             await loadSetTagLinks()
+            await loadPresets()
         }
     }
 
@@ -444,6 +455,18 @@ final class LocalLibraryStore: ObservableObject {
         }
     }
 
+    @MainActor
+    func createPreset(name: String, mode: String, tagIds: [String]) -> FilterPreset {
+        let preset = FilterPreset(id: UUID().uuidString,
+                                  name: name,
+                                  mode: mode,
+                                  tagIds: tagIds,
+                                  createdAt: Date())
+        presets.append(preset)
+        persistPresets()
+        return preset
+    }
+
     func image(at path: String) -> UIImage? {
         UIImage(contentsOfFile: path)
     }
@@ -489,6 +512,10 @@ final class LocalLibraryStore: ObservableObject {
 
     private func setTagLinksURL() -> URL {
         applicationSupportDirectory().appendingPathComponent(setTagLinksFileName)
+    }
+
+    private func presetsURL() -> URL {
+        applicationSupportDirectory().appendingPathComponent(presetsFileName)
     }
 
     private func loadCatalog() async {
@@ -602,6 +629,20 @@ final class LocalLibraryStore: ObservableObject {
         }
     }
 
+    private func loadPresets() async {
+        let url = presetsURL()
+        guard let data = try? Data(contentsOf: url),
+              let decoded = try? JSONDecoder().decode([FilterPreset].self, from: data) else {
+            await MainActor.run {
+                presets = []
+            }
+            return
+        }
+        await MainActor.run {
+            presets = decoded
+        }
+    }
+
     private func persistCatalog() {
         let url = catalogURL()
         let data = try? JSONEncoder().encode(items)
@@ -629,6 +670,12 @@ final class LocalLibraryStore: ObservableObject {
     private func persistSetTagLinks() {
         let url = setTagLinksURL()
         let data = try? JSONEncoder().encode(setTagLinks)
+        try? data?.write(to: url, options: .atomic)
+    }
+
+    private func persistPresets() {
+        let url = presetsURL()
+        let data = try? JSONEncoder().encode(presets)
         try? data?.write(to: url, options: .atomic)
     }
 
