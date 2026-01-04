@@ -13,7 +13,7 @@ struct ShowcaseView: View {
     @State private var categoryIndex = 0
     @State private var setIndex = 0
     @State private var photoIndex = 0
-    @State private var selectedTagId: String?
+    @State private var selectedTagIds: Set<String> = []
     @State private var showTagSheet = false
     @State private var isSlideshowPlaying = false
     @State private var slideshowTimer: Timer?
@@ -64,7 +64,7 @@ struct ShowcaseView: View {
         let setNote = usesCategories || usesSets ? "" : (usesLocal ? "From your Photos library." : (demoSet?.note ?? ""))
         let priceText = usesCategories || usesSets || usesLocal ? "" : (demoSet?.priceText ?? "")
         let categoryEmpty = (usesCategories || usesSets) && filteredSets.isEmpty
-        let selectedTagName = tagName(for: selectedTagId)
+        let selectedTagName = tagFilterTitle()
 
         GeometryReader { proxy in
             let size = proxy.size
@@ -165,7 +165,7 @@ struct ShowcaseView: View {
         .onChange(of: store.items.count) { _ in
             if photoIndex >= displayPhotos.count { photoIndex = 0 }
         }
-        .onChange(of: selectedTagId) { _ in
+        .onChange(of: selectedTagIds) { _ in
             let categories = categoriesSorted()
             let setsForCategory = !categories.isEmpty
                 ? store.sets.filter { $0.categoryId == categories[safe: categoryIndex]?.id }
@@ -220,27 +220,30 @@ struct ShowcaseView: View {
         return NavigationStack {
             List {
                 Button {
-                    selectedTagId = nil
-                    showTagSheet = false
+                    selectedTagIds.removeAll()
                 } label: {
                     HStack {
-                        Text("全部")
+                        Text("全部（清空）")
                         Spacer()
-                        if selectedTagId == nil {
+                        if selectedTagIds.isEmpty {
                             Image(systemName: "checkmark")
                                 .foregroundStyle(.secondary)
                         }
                     }
                 }
                 ForEach(tags) { tag in
+                    let isSelected = selectedTagIds.contains(tag.id)
                     Button {
-                        selectedTagId = tag.id
-                        showTagSheet = false
+                        if isSelected {
+                            selectedTagIds.remove(tag.id)
+                        } else {
+                            selectedTagIds.insert(tag.id)
+                        }
                     } label: {
                         HStack {
                             Text(tag.name)
                             Spacer()
-                            if selectedTagId == tag.id {
+                            if isSelected {
                                 Image(systemName: "checkmark")
                                     .foregroundStyle(.secondary)
                             }
@@ -505,15 +508,19 @@ struct ShowcaseView: View {
     }
 
     private func filterSetsByTag(_ sets: [LocalLibraryStore.SampleSet]) -> [LocalLibraryStore.SampleSet] {
-        guard let selectedTagId else { return sets }
+        guard !selectedTagIds.isEmpty else { return sets }
         return sets.filter { set in
-            store.setTagLinks.contains { $0.setId == set.id && $0.tagId == selectedTagId }
+            store.setTagLinks.contains { $0.setId == set.id && selectedTagIds.contains($0.tagId) }
         }
     }
 
-    private func tagName(for tagId: String?) -> String {
-        guard let tagId else { return "全部" }
-        return store.tags.first(where: { $0.id == tagId })?.name ?? "全部"
+    private func tagFilterTitle() -> String {
+        let count = selectedTagIds.count
+        if count == 0 { return "全部" }
+        if count == 1, let tagId = selectedTagIds.first {
+            return store.tags.first(where: { $0.id == tagId })?.name ?? "全部"
+        }
+        return "已选 \(count)"
     }
 
     private func displayPhotosForSet(_ set: LocalLibraryStore.SampleSet?) -> [DisplayPhoto] {
