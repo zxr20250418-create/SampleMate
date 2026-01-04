@@ -354,14 +354,12 @@ private struct SetDetailView: View {
     @State private var selectedAddPhotoIDs: Set<String> = []
 
     var body: some View {
-        ScrollView {
-            let set = store.sets.first(where: { $0.id == setID })
+        let set = store.sets.first(where: { $0.id == setID })
+        List {
             if let set {
                 let tags = tagsSorted()
                 if !tags.isEmpty {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Tags")
-                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    Section("Tags") {
                         ForEach(tags) { tag in
                             Button {
                                 toggleTag(setID: set.id, tagID: tag.id)
@@ -382,26 +380,28 @@ private struct SetDetailView: View {
                             .buttonStyle(.plain)
                         }
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 12)
                 }
                 let items = set.photoIDsOrdered.compactMap { id in
                     store.items.first(where: { $0.id == id })
                 }
-                let columns = [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
-                LazyVGrid(columns: columns, spacing: 12) {
+                Section("Photos") {
                     ForEach(items) { item in
-                        SetPhotoCell(store: store,
-                                     item: item,
-                                     isMain: item.id == set.mainPhotoID) {
-                            store.setMainPhoto(setID: set.id, photoID: item.id)
-                        } onRemove: {
-                            store.removePhotoFromSet(setId: set.id, photoId: item.id)
+                        SetPhotoRow(store: store,
+                                    item: item,
+                                    isMain: item.id == set.mainPhotoID,
+                                    onSetMain: {
+                                        store.setMainPhoto(setID: set.id, photoID: item.id)
+                                    })
+                        .swipeActions(edge: .trailing) {
+                            Button("移出套图", role: .destructive) {
+                                store.removePhotoFromSet(setId: set.id, photoId: item.id)
+                            }
                         }
                     }
+                    .onMove { indices, newOffset in
+                        store.reorderPhotosInSet(setId: set.id, fromOffsets: indices, toOffset: newOffset)
+                    }
                 }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 16)
             } else {
                 Text("Set not found")
                     .font(.system(size: 14, weight: .medium, design: .rounded))
@@ -411,13 +411,14 @@ private struct SetDetailView: View {
         }
         .navigationTitle(store.sets.first(where: { $0.id == setID })?.title ?? "Set")
         .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
+            ToolbarItem(placement: .navigationBarLeading) {
+                EditButton()
+            }
+            ToolbarItemGroup(placement: .navigationBarTrailing) {
                 Button("Add Photos") {
                     selectedAddPhotoIDs.removeAll()
                     showAddPhotos = true
                 }
-            }
-            ToolbarItem(placement: .navigationBarTrailing) {
                 Button("Delete Set", role: .destructive) {
                     store.deleteSet(setID: setID)
                     dismiss()
@@ -479,6 +480,7 @@ private struct SetDetailView: View {
                 }
             }
         }
+        .listStyle(.insetGrouped)
         .background(Color(.systemGroupedBackground))
     }
 
@@ -515,43 +517,42 @@ private struct SetDetailView: View {
     }
 }
 
-private struct SetPhotoCell: View {
+private struct SetPhotoRow: View {
     let store: LocalLibraryStore
     let item: LocalLibraryStore.LocalLibraryItem
     let isMain: Bool
-    let onSelect: () -> Void
-    let onRemove: () -> Void
+    let onSetMain: () -> Void
 
     var body: some View {
-        Button(action: onSelect) {
+        HStack(spacing: 12) {
             if let image = store.thumbnail(at: item.thumbPath) ?? store.image(at: item.photoPath) {
                 Image(uiImage: image)
                     .resizable()
                     .aspectRatio(2.0 / 3.0, contentMode: .fit)
-                    .frame(maxWidth: .infinity)
-                    .background(.white, in: RoundedRectangle(cornerRadius: 12))
+                    .frame(width: 64)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
             } else {
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: 10)
                     .fill(Color.gray.opacity(0.12))
                     .aspectRatio(2.0 / 3.0, contentMode: .fit)
+                    .frame(width: 64)
             }
-        }
-        .buttonStyle(.plain)
-        .overlay(RoundedRectangle(cornerRadius: 12)
-            .stroke(isMain ? Color.primary.opacity(0.9) : .clear, lineWidth: 2))
-        .overlay(alignment: .topLeading) {
-            if isMain {
-                Image(systemName: "star.fill")
-                    .font(.system(size: 12, weight: .semibold))
-                    .padding(6)
-                    .background(.white.opacity(0.9), in: Circle())
-                    .padding(6)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Photo \(item.id.prefix(6))")
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                if isMain {
+                    Text("主图")
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(.secondary)
+                }
             }
-        }
-        .contextMenu {
-            Button("移出套图", role: .destructive) {
-                onRemove()
+            Spacer()
+            Button(action: onSetMain) {
+                Image(systemName: isMain ? "star.fill" : "star")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(isMain ? .primary : .secondary)
             }
+            .buttonStyle(.plain)
         }
     }
 }
