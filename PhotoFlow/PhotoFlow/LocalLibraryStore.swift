@@ -43,7 +43,11 @@ final class LocalLibraryStore: ObservableObject {
             sortIndex = try container.decodeIfPresent(Int.self, forKey: .sortIndex) ?? -1
             createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
             if coverPhotoID == nil {
-                coverPhotoID = mainPhotoID.isEmpty ? photoIDsOrdered.first : mainPhotoID
+                if !mainPhotoID.isEmpty {
+                    coverPhotoID = mainPhotoID
+                } else {
+                    coverPhotoID = photoIDsOrdered.first
+                }
             }
         }
 
@@ -148,12 +152,13 @@ final class LocalLibraryStore: ObservableObject {
     func createSet(title: String, photoIDs: [String]) -> SampleSet {
         let normalized = photoIDs.filter { id in items.contains { $0.id == id } }
         let mainID = normalized.first ?? ""
+        let coverID: String? = mainID.isEmpty ? nil : mainID
         let nextIndex = (sets.filter { $0.categoryId == nil }.map { $0.sortIndex }.max() ?? -1) + 1
         let set = SampleSet(id: UUID().uuidString,
                             title: title,
                             photoIDsOrdered: normalized,
                             mainPhotoID: mainID,
-                            coverPhotoID: mainID.isEmpty ? nil : mainID,
+                            coverPhotoID: coverID,
                             categoryId: nil,
                             sortIndex: nextIndex,
                             createdAt: Date())
@@ -217,7 +222,7 @@ final class LocalLibraryStore: ObservableObject {
     func moveCategory(fromOffsets: IndexSet, toOffset: Int) {
         Task {
             await MainActor.run {
-                categories = reordered(categories, fromOffsets: fromOffsets, toOffset: toOffset)
+                categories = _reorderArray(categories, fromOffsets: fromOffsets, toOffset: toOffset)
                 for idx in categories.indices {
                     categories[idx].sortIndex = idx
                 }
@@ -349,7 +354,7 @@ final class LocalLibraryStore: ObservableObject {
     func reorderSets(categoryId: String?, fromOffsets: IndexSet, toOffset: Int) {
         let grouped = sets.filter { $0.categoryId == categoryId }.sorted { $0.sortIndex < $1.sortIndex }
         guard !grouped.isEmpty else { return }
-        let reorderedGroup = reordered(grouped, fromOffsets: fromOffsets, toOffset: toOffset)
+        let reorderedGroup = _reorderArray(grouped, fromOffsets: fromOffsets, toOffset: toOffset)
         var updatedGroup: [SampleSet] = []
         updatedGroup.reserveCapacity(reorderedGroup.count)
         for (idx, set) in reorderedGroup.enumerated() {
@@ -369,7 +374,7 @@ final class LocalLibraryStore: ObservableObject {
     func reorderPhotosInSet(setId: String, fromOffsets: IndexSet, toOffset: Int) {
         guard let idx = sets.firstIndex(where: { $0.id == setId }) else { return }
         var updated = sets[idx]
-        updated.photoIDsOrdered = reordered(updated.photoIDsOrdered, fromOffsets: fromOffsets, toOffset: toOffset)
+        updated.photoIDsOrdered = _reorderArray(updated.photoIDsOrdered, fromOffsets: fromOffsets, toOffset: toOffset)
         sets[idx] = updated
         persistSets()
     }
@@ -400,7 +405,11 @@ final class LocalLibraryStore: ObservableObject {
             updated.mainPhotoID = updated.photoIDsOrdered.first ?? ""
         }
         if updated.coverPhotoID == photoId {
-            updated.coverPhotoID = updated.photoIDsOrdered.first
+            if let first = updated.photoIDsOrdered.first {
+                updated.coverPhotoID = first
+            } else {
+                updated.coverPhotoID = nil
+            }
         }
         sets[idx] = updated
         persistSets()
@@ -494,7 +503,7 @@ final class LocalLibraryStore: ObservableObject {
         }
     }
 
-    private func reordered<T>(_ array: [T], fromOffsets: IndexSet, toOffset: Int) -> [T] {
+    private func _reorderArray<T>(_ array: [T], fromOffsets: IndexSet, toOffset: Int) -> [T] {
         guard !fromOffsets.isEmpty else { return array }
         let moving = fromOffsets.sorted().map { array[$0] }
         var result = array
