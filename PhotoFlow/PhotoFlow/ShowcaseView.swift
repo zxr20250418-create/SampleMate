@@ -187,20 +187,6 @@ struct ShowcaseView: View {
                             showcaseCard(note: setNote, priceText: priceText)
                                 .padding(.horizontal, 20)
                         }
-                        Button {
-                            userPressedPlayPause(photosCount: displayPhotos.count)
-                        } label: {
-                            HStack(spacing: 8) {
-                                Image(systemName: isSlideshowPlaying ? "pause.fill" : "play.fill")
-                                Text(isSlideshowPlaying ? "showcase.pause" : "showcase.play")
-                            }
-                            .font(.system(size: 12, weight: .semibold, design: .rounded))
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 8)
-                            .background(.white.opacity(0.9), in: Capsule())
-                        }
-                        .buttonStyle(.plain)
-                        .padding(.horizontal, 20)
                     }
 
                     Spacer(minLength: 0)
@@ -427,6 +413,16 @@ struct ShowcaseView: View {
                 .font(.system(size: 12, weight: .semibold, design: .rounded))
                 .padding(.horizontal, 10).padding(.vertical, 6)
                 .background(.white.opacity(0.9), in: Capsule())
+            Button {
+                userPressedPlayPause(photosCount: photosCount)
+            } label: {
+                Image(systemName: isSlideshowPlaying ? "pause.fill" : "play.fill")
+                    .font(.system(size: 11, weight: .bold))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                    .background(.white.opacity(0.9), in: Capsule())
+            }
+            .buttonStyle(.plain)
             Text(isFullscreen ? "Full" : "Compact")
                 .font(.system(size: 12, weight: .semibold, design: .rounded))
                 .padding(.horizontal, 10).padding(.vertical, 6)
