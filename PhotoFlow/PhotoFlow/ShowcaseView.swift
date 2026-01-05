@@ -28,6 +28,8 @@ struct ShowcaseView: View {
     @State private var isSlideshowPlaying = false
     @State private var slideshowTimer: Timer?
     @State private var overlayAutoHideTask: Task<Void, Never>?
+    @State private var filmstripRequested = false
+    @GestureState private var isHorizontalPaging = false
 
     @Environment(\.scenePhase) private var scenePhase
 
@@ -89,6 +91,9 @@ struct ShowcaseView: View {
             let thumbnailHeight: CGFloat = 102
             let filmstripFrameHeight: CGFloat = thumbnailHeight + 20
             let mainHeight = isFullscreen ? size.height * 0.72 : size.height * 0.42
+            let shouldShowFilmstrip = isFullscreen
+                ? (filmstripRequested && !isSlideshowPlaying && !isHorizontalPaging)
+                : true
 
             ZStack {
                 Color(.systemGroupedBackground).ignoresSafeArea()
@@ -126,12 +131,11 @@ struct ShowcaseView: View {
                         .simultaneousGesture(TapGesture().onEnded {
                             guard isFullscreen else { return }
                             if isSlideshowPlaying {
-                                stopSlideshowAndRevealOverlays()
+                                stopSlideshowAndRevealFilmstrip()
                             } else {
-                                let next = !overlaysVisible
-                                withAnimation(.easeOut(duration: 0.18)) {
-                                    overlaysVisible = next
-                                }
+                                let next = !filmstripRequested
+                                filmstripRequested = next
+                                overlaysVisible = next
                                 if next { scheduleOverlayAutoHide() }
                                 else { cancelOverlayAutoHide() }
                             }
@@ -149,7 +153,7 @@ struct ShowcaseView: View {
                         }
                     }
                     .overlay(alignment: .bottom) {
-                        if isFullscreen && overlaysVisible && !isSlideshowPlaying {
+                        if isFullscreen {
                             filmstrip(photos: displayPhotos, height: thumbnailHeight)
                                 .padding(.horizontal, 12)
                                 .padding(.bottom, 12)
@@ -159,12 +163,15 @@ struct ShowcaseView: View {
                                         .fill(.ultraThinMaterial)
                                         .allowsHitTesting(false)
                                 }
+                                .opacity(shouldShowFilmstrip ? 1 : 0)
+                                .animation(.easeInOut(duration: 0.15), value: filmstripRequested)
+                                .animation(nil, value: isHorizontalPaging)
                         }
                     }
                     .overlay(alignment: .topTrailing) {
                         if isFullscreen && isSlideshowPlaying {
                             Button {
-                                stopSlideshowAndRevealOverlays()
+                                stopSlideshowAndRevealFilmstrip()
                             } label: {
                                 Image(systemName: "pause.fill")
                                     .font(.system(size: 11, weight: .bold))
@@ -248,6 +255,7 @@ struct ShowcaseView: View {
         .onChange(of: isFullscreen) { value in
             if value {
                 overlaysVisible = true
+                filmstripRequested = false
                 if slideshowEnabled {
                     startSlideshow(photosCount: displayPhotos.count)
                 } else {
@@ -257,6 +265,7 @@ struct ShowcaseView: View {
                 pauseSlideshow()
                 cancelOverlayAutoHide()
                 overlaysVisible = true
+                filmstripRequested = false
             }
         }
         .onChange(of: slideshowIntervalSeconds) { _ in
@@ -300,7 +309,7 @@ struct ShowcaseView: View {
             }
         }
         .onChange(of: categoryIndex) { _ in
-            stopSlideshowAndRevealOverlays()
+            stopSlideshowOnly()
             let categories = categoriesSorted()
             if !categories.isEmpty {
                 let setsForCategory = store.sets.filter { $0.categoryId == categories[safe: categoryIndex]?.id }
@@ -434,7 +443,7 @@ struct ShowcaseView: View {
             Text("\(min(photoIndex + 1, photosCount))/\(max(photosCount, 1))")
                 .font(.system(size: 11, weight: .semibold, design: .rounded))
             Button {
-                if isSlideshowPlaying { stopSlideshowAndRevealOverlays() }
+                if isSlideshowPlaying { stopSlideshowAndRevealFilmstrip() }
                 else { startSlideshow(photosCount: photosCount) }
             } label: {
                 Image(systemName: isSlideshowPlaying ? "pause.fill" : "play.fill")
@@ -555,7 +564,7 @@ struct ShowcaseView: View {
             HStack(spacing: 12) {
                 ForEach(Array(photos.enumerated()), id: \.offset) { idx, p in
                     thumbnailButton(photo: p, height: height, isSelected: idx == photoIndex) {
-                        stopSlideshowAndRevealOverlays()
+                        stopSlideshowOnly()
                         photoIndex = idx
                     }
                 }
@@ -635,22 +644,38 @@ struct ShowcaseView: View {
     }
 
     private func dragGesture() -> some Gesture {
-        DragGesture(minimumDistance: 18).onEnded { v in
-            let dx = v.translation.width, dy = v.translation.height
-            if abs(dx) > abs(dy) {
-                if dx <= -60 { stopSlideshowAndRevealOverlays(); nextSet(1) }
-                else if dx >= 60 { stopSlideshowAndRevealOverlays(); nextSet(-1) }
-            } else {
-                if dy <= -60 { stopSlideshowAndRevealOverlays(); nextCategory(1) }
-                else if dy >= 60 { stopSlideshowAndRevealOverlays(); nextCategory(-1) }
+        DragGesture(minimumDistance: 18)
+            .updating($isHorizontalPaging) { value, state, _ in
+                let dx = value.translation.width
+                let dy = value.translation.height
+                if abs(dx) > abs(dy), abs(dx) > 24 {
+                    state = true
+                }
             }
-        }
+            .onChanged { value in
+                guard isFullscreen else { return }
+                let dx = value.translation.width
+                let dy = value.translation.height
+                if abs(dx) > abs(dy), abs(dx) > 24 {
+                    filmstripRequested = false
+                }
+            }
+            .onEnded { v in
+                let dx = v.translation.width, dy = v.translation.height
+                if abs(dx) > abs(dy) {
+                    if dx <= -60 { stopSlideshowOnly(); nextSet(1) }
+                    else if dx >= 60 { stopSlideshowOnly(); nextSet(-1) }
+                } else {
+                    if dy <= -60 { stopSlideshowOnly(); nextCategory(1) }
+                    else if dy >= 60 { stopSlideshowOnly(); nextCategory(-1) }
+                }
+            }
     }
 
     private func pinchGesture() -> some Gesture {
         MagnificationGesture().onEnded { value in
-            if value > 1.08 { stopSlideshowAndRevealOverlays(); isFullscreen = true }
-            else if value < 0.92 { stopSlideshowAndRevealOverlays(); isFullscreen = false }
+            if value > 1.08 { stopSlideshowOnly(); isFullscreen = true }
+            else if value < 0.92 { stopSlideshowOnly(); isFullscreen = false }
         }
     }
 
@@ -659,6 +684,7 @@ struct ShowcaseView: View {
         pauseSlideshow()
         isSlideshowPlaying = true
         overlaysVisible = false
+        filmstripRequested = false
         cancelOverlayAutoHide()
         slideshowTimer = Timer.scheduledTimer(withTimeInterval: TimeInterval(slideshowIntervalSeconds), repeats: true) { _ in
             advancePhoto(photosCount: photosCount)
@@ -673,14 +699,13 @@ struct ShowcaseView: View {
 
     private func scheduleOverlayAutoHide() {
         cancelOverlayAutoHide()
-        guard isFullscreen, !isSlideshowPlaying, overlaysVisible else { return }
+        guard isFullscreen, !isSlideshowPlaying, filmstripRequested else { return }
         overlayAutoHideTask = Task {
             try? await Task.sleep(nanoseconds: UInt64(overlayAutoHideSeconds * 1_000_000_000))
             await MainActor.run {
                 guard isFullscreen, !isSlideshowPlaying else { return }
-                withAnimation(.easeOut(duration: 0.18)) {
-                    overlaysVisible = false
-                }
+                overlaysVisible = false
+                filmstripRequested = false
             }
         }
     }
@@ -690,10 +715,16 @@ struct ShowcaseView: View {
         overlayAutoHideTask = nil
     }
 
-    private func stopSlideshowAndRevealOverlays() {
+    private func stopSlideshowAndRevealFilmstrip() {
         pauseSlideshow()
         overlaysVisible = true
+        filmstripRequested = true
         scheduleOverlayAutoHide()
+    }
+
+    private func stopSlideshowOnly() {
+        pauseSlideshow()
+        cancelOverlayAutoHide()
     }
 
     private func advancePhoto(photosCount: Int) {
@@ -702,7 +733,7 @@ struct ShowcaseView: View {
     }
 
     private func nextCategory(_ d: Int) {
-        stopSlideshowAndRevealOverlays()
+        stopSlideshowOnly()
         let categories = categoriesSorted()
         if !categories.isEmpty {
             let c = categories.count
@@ -722,7 +753,7 @@ struct ShowcaseView: View {
     }
 
     private func nextSet(_ d: Int) {
-        stopSlideshowAndRevealOverlays()
+        stopSlideshowOnly()
         let categories = categoriesSorted()
         if !categories.isEmpty {
             let setsForCategory = store.sets.filter { $0.categoryId == categories[safe: categoryIndex]?.id }
@@ -763,7 +794,7 @@ struct ShowcaseView: View {
     }
 
     private func applyPreset(_ preset: LocalLibraryStore.FilterPreset) {
-        stopSlideshowAndRevealOverlays()
+        stopSlideshowOnly()
         filterModeRaw = preset.mode
         selectedTagIds = Set(preset.tagIds)
         selectedTagIdsRaw = preset.tagIds.joined(separator: ",")
@@ -771,7 +802,7 @@ struct ShowcaseView: View {
     }
 
     private func applyTagFilterSelection() {
-        stopSlideshowAndRevealOverlays()
+        stopSlideshowOnly()
         let categories = categoriesSorted()
         let setsForCategory = !categories.isEmpty
             ? store.sets.filter { $0.categoryId == categories[safe: categoryIndex]?.id }
