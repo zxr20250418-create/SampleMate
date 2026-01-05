@@ -536,6 +536,73 @@ final class LocalLibraryStore: ObservableObject {
         persistPresets()
     }
 
+    func makeBackupDocument() throws -> SampleMateBackupDocument {
+        let rootURL = applicationSupportDirectory()
+        let fileNames = [
+            catalogFileName,
+            setsFileName,
+            categoriesFileName,
+            tagsFileName,
+            setTagLinksFileName,
+            presetsFileName
+        ]
+        var wrappers: [String: FileWrapper] = [:]
+        for name in fileNames {
+            let url = rootURL.appendingPathComponent(name)
+            if fileManager.fileExists(atPath: url.path) {
+                wrappers[name] = try FileWrapper(url: url, options: .immediate)
+            }
+        }
+
+        let photosURL = photosDirectory()
+        if fileManager.fileExists(atPath: photosURL.path) {
+            wrappers[photosFolderName] = try FileWrapper(url: photosURL, options: .immediate)
+        }
+        let thumbsURL = thumbsDirectory()
+        if fileManager.fileExists(atPath: thumbsURL.path) {
+            wrappers[thumbsFolderName] = try FileWrapper(url: thumbsURL, options: .immediate)
+        }
+
+        return SampleMateBackupDocument(rootFileWrapper: FileWrapper(directoryWithFileWrappers: wrappers))
+    }
+
+    @MainActor
+    func restore(from document: SampleMateBackupDocument) async throws {
+        let rootWrapper = document.rootFileWrapper
+        guard rootWrapper.isDirectory else { return }
+        let rootURL = applicationSupportDirectory()
+        let tempURL = rootURL.appendingPathComponent("RestoreTemp-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: tempURL, withIntermediateDirectories: true)
+
+        let wrappers = rootWrapper.fileWrappers ?? [:]
+        for (name, wrapper) in wrappers {
+            let url = tempURL.appendingPathComponent(name, isDirectory: wrapper.isDirectory)
+            try wrapper.write(to: url, options: .atomic, originalContentsURL: nil)
+        }
+
+        for (name, wrapper) in wrappers {
+            let tempItemURL = tempURL.appendingPathComponent(name, isDirectory: wrapper.isDirectory)
+            let destURL = rootURL.appendingPathComponent(name, isDirectory: wrapper.isDirectory)
+            if fileManager.fileExists(atPath: destURL.path) {
+                try fileManager.removeItem(at: destURL)
+            }
+            try fileManager.moveItem(at: tempItemURL, to: destURL)
+        }
+
+        try? fileManager.removeItem(at: tempURL)
+        await reloadAll()
+    }
+
+    @MainActor
+    func reloadAll() async {
+        await loadCatalog()
+        await loadSets()
+        await loadCategories()
+        await loadTags()
+        await loadSetTagLinks()
+        await loadPresets()
+    }
+
     func image(at path: String) -> UIImage? {
         UIImage(contentsOfFile: path)
     }

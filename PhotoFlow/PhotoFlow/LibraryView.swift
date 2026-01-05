@@ -1,3 +1,4 @@
+import Foundation
 import PhotosUI
 import SwiftUI
 
@@ -15,6 +16,15 @@ struct LibraryView: View {
     @State private var showNewTagPrompt = false
     @State private var newTagName: String = ""
     @State private var path: [String] = []
+    @State private var showBackupExporter = false
+    @State private var backupDocument = SampleMateBackupDocument()
+    @State private var showBackupImporter = false
+    @State private var pendingRestoreDocument: SampleMateBackupDocument?
+    @State private var showRestoreConfirm = false
+    @State private var isRestoringBackup = false
+    @State private var showRestoreSuccess = false
+    @State private var showRestoreError = false
+    @State private var restoreErrorMessage: String = ""
 
     init(store: LocalLibraryStore = LocalLibraryStore()) {
         _store = StateObject(wrappedValue: store)
@@ -131,6 +141,30 @@ struct LibraryView: View {
                         .padding(12)
                         .background(.white.opacity(0.95), in: RoundedRectangle(cornerRadius: 14))
                     }
+                }
+
+                Section("备份/恢复") {
+                    Button {
+                        do {
+                            backupDocument = try store.makeBackupDocument()
+                            showBackupExporter = true
+                        } catch {
+                            restoreErrorMessage = "导出失败"
+                            showRestoreError = true
+                        }
+                    } label: {
+                        Label("导出备份", systemImage: "square.and.arrow.up")
+                            .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        showBackupImporter = true
+                    } label: {
+                        Label("导入备份", systemImage: "square.and.arrow.down")
+                            .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    }
+                    .buttonStyle(.plain)
                 }
 
                 ForEach(setGroups()) { group in
@@ -252,6 +286,78 @@ struct LibraryView: View {
                     newTagName = ""
                 }
                 Button("Cancel", role: .cancel) {}
+            }
+            .alert("恢复备份", isPresented: $showRestoreConfirm) {
+                Button("恢复", role: .destructive) {
+                    guard let document = pendingRestoreDocument else { return }
+                    isRestoringBackup = true
+                    Task {
+                        do {
+                            try await store.restore(from: document)
+                            showRestoreSuccess = true
+                        } catch {
+                            restoreErrorMessage = "恢复失败"
+                            showRestoreError = true
+                        }
+                        isRestoringBackup = false
+                        pendingRestoreDocument = nil
+                    }
+                }
+                Button("取消", role: .cancel) {
+                    pendingRestoreDocument = nil
+                }
+            } message: {
+                Text("将覆盖当前本地数据。")
+            }
+            .alert("恢复完成", isPresented: $showRestoreSuccess) {
+                Button("OK") {}
+            }
+            .alert("操作失败", isPresented: $showRestoreError) {
+                Button("OK") {}
+            } message: {
+                Text(restoreErrorMessage)
+            }
+            .fileExporter(isPresented: $showBackupExporter,
+                          document: backupDocument,
+                          contentType: .sampleMateBackup,
+                          defaultFilename: "SampleMateBackup") { result in
+                if case .failure = result {
+                    restoreErrorMessage = "导出失败"
+                    showRestoreError = true
+                }
+            }
+            .fileImporter(isPresented: $showBackupImporter,
+                          allowedContentTypes: [.sampleMateBackup]) { result in
+                switch result {
+                case .success(let url):
+                    let access = url.startAccessingSecurityScopedResource()
+                    defer {
+                        if access {
+                            url.stopAccessingSecurityScopedResource()
+                        }
+                    }
+                    do {
+                        let wrapper = try FileWrapper(url: url, options: .immediate)
+                        pendingRestoreDocument = SampleMateBackupDocument(rootFileWrapper: wrapper)
+                        showRestoreConfirm = true
+                    } catch {
+                        restoreErrorMessage = "导入失败"
+                        showRestoreError = true
+                    }
+                case .failure:
+                    restoreErrorMessage = "导入失败"
+                    showRestoreError = true
+                }
+            }
+            .overlay {
+                if isRestoringBackup {
+                    ZStack {
+                        Color.black.opacity(0.2).ignoresSafeArea()
+                        ProgressView("正在恢复…")
+                            .padding(16)
+                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+                    }
+                }
             }
         }
     }
