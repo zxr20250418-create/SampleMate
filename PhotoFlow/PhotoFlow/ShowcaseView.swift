@@ -27,11 +27,13 @@ struct ShowcaseView: View {
     @State private var deletePresetID: String?
     @State private var isSlideshowPlaying = false
     @State private var slideshowTimer: Timer?
+    @State private var overlayAutoHideTask: Task<Void, Never>?
 
     @Environment(\.scenePhase) private var scenePhase
 
     private let catalog = ShowcaseDemoCatalog.sample
     private let photoAspect: CGFloat = 2.0 / 3.0
+    private let overlayAutoHideSeconds: Double = 2.5
 
     private struct DisplayPhoto: Identifiable {
         let id: String
@@ -124,9 +126,14 @@ struct ShowcaseView: View {
                         .simultaneousGesture(TapGesture().onEnded {
                             guard isFullscreen else { return }
                             if isSlideshowPlaying {
-                                pauseSlideshow()
+                                stopSlideshowAndRevealOverlays()
                             } else {
-                                overlaysVisible.toggle()
+                                let next = !overlaysVisible
+                                withAnimation(.easeOut(duration: 0.18)) {
+                                    overlaysVisible = next
+                                }
+                                if next { scheduleOverlayAutoHide() }
+                                else { cancelOverlayAutoHide() }
                             }
                         })
                         .animation(isFullscreen ? .easeInOut(duration: 0.18) : nil, value: activePhotoID)
@@ -157,7 +164,7 @@ struct ShowcaseView: View {
                     .overlay(alignment: .topTrailing) {
                         if isFullscreen && isSlideshowPlaying {
                             Button {
-                                pauseSlideshow()
+                                stopSlideshowAndRevealOverlays()
                             } label: {
                                 Image(systemName: "pause.fill")
                                     .font(.system(size: 11, weight: .bold))
@@ -241,9 +248,14 @@ struct ShowcaseView: View {
         .onChange(of: isFullscreen) { value in
             if value {
                 overlaysVisible = true
-                if slideshowEnabled { startSlideshow(photosCount: displayPhotos.count) }
+                if slideshowEnabled {
+                    startSlideshow(photosCount: displayPhotos.count)
+                } else {
+                    scheduleOverlayAutoHide()
+                }
             } else {
                 pauseSlideshow()
+                cancelOverlayAutoHide()
                 overlaysVisible = true
             }
         }
@@ -251,10 +263,19 @@ struct ShowcaseView: View {
             if isSlideshowPlaying { startSlideshow(photosCount: displayPhotos.count) }
         }
         .onChange(of: slideshowEnabled) { value in
-            if !value { pauseSlideshow() }
+            if !value {
+                pauseSlideshow()
+                if isFullscreen {
+                    overlaysVisible = true
+                    scheduleOverlayAutoHide()
+                }
+            }
         }
         .onChange(of: scenePhase) { phase in
-            if phase != .active { pauseSlideshow() }
+            if phase != .active {
+                pauseSlideshow()
+                cancelOverlayAutoHide()
+            }
         }
         .onChange(of: store.items.count) { _ in
             if photoIndex >= displayPhotos.count { photoIndex = 0 }
@@ -279,7 +300,7 @@ struct ShowcaseView: View {
             }
         }
         .onChange(of: categoryIndex) { _ in
-            pauseSlideshow()
+            stopSlideshowAndRevealOverlays()
             let categories = categoriesSorted()
             if !categories.isEmpty {
                 let setsForCategory = store.sets.filter { $0.categoryId == categories[safe: categoryIndex]?.id }
@@ -413,7 +434,7 @@ struct ShowcaseView: View {
             Text("\(min(photoIndex + 1, photosCount))/\(max(photosCount, 1))")
                 .font(.system(size: 11, weight: .semibold, design: .rounded))
             Button {
-                if isSlideshowPlaying { pauseSlideshow() }
+                if isSlideshowPlaying { stopSlideshowAndRevealOverlays() }
                 else { startSlideshow(photosCount: photosCount) }
             } label: {
                 Image(systemName: isSlideshowPlaying ? "pause.fill" : "play.fill")
@@ -534,7 +555,7 @@ struct ShowcaseView: View {
             HStack(spacing: 12) {
                 ForEach(Array(photos.enumerated()), id: \.offset) { idx, p in
                     thumbnailButton(photo: p, height: height, isSelected: idx == photoIndex) {
-                        pauseSlideshow()
+                        stopSlideshowAndRevealOverlays()
                         photoIndex = idx
                     }
                 }
@@ -617,19 +638,19 @@ struct ShowcaseView: View {
         DragGesture(minimumDistance: 18).onEnded { v in
             let dx = v.translation.width, dy = v.translation.height
             if abs(dx) > abs(dy) {
-                if dx <= -60 { pauseSlideshow(); nextSet(1) }
-                else if dx >= 60 { pauseSlideshow(); nextSet(-1) }
+                if dx <= -60 { stopSlideshowAndRevealOverlays(); nextSet(1) }
+                else if dx >= 60 { stopSlideshowAndRevealOverlays(); nextSet(-1) }
             } else {
-                if dy <= -60 { pauseSlideshow(); nextCategory(1) }
-                else if dy >= 60 { pauseSlideshow(); nextCategory(-1) }
+                if dy <= -60 { stopSlideshowAndRevealOverlays(); nextCategory(1) }
+                else if dy >= 60 { stopSlideshowAndRevealOverlays(); nextCategory(-1) }
             }
         }
     }
 
     private func pinchGesture() -> some Gesture {
         MagnificationGesture().onEnded { value in
-            if value > 1.08 { pauseSlideshow(); isFullscreen = true }
-            else if value < 0.92 { pauseSlideshow(); isFullscreen = false }
+            if value > 1.08 { stopSlideshowAndRevealOverlays(); isFullscreen = true }
+            else if value < 0.92 { stopSlideshowAndRevealOverlays(); isFullscreen = false }
         }
     }
 
@@ -638,6 +659,7 @@ struct ShowcaseView: View {
         pauseSlideshow()
         isSlideshowPlaying = true
         overlaysVisible = false
+        cancelOverlayAutoHide()
         slideshowTimer = Timer.scheduledTimer(withTimeInterval: TimeInterval(slideshowIntervalSeconds), repeats: true) { _ in
             advancePhoto(photosCount: photosCount)
         }
@@ -649,13 +671,38 @@ struct ShowcaseView: View {
         slideshowTimer = nil
     }
 
+    private func scheduleOverlayAutoHide() {
+        cancelOverlayAutoHide()
+        guard isFullscreen, !isSlideshowPlaying, overlaysVisible else { return }
+        overlayAutoHideTask = Task {
+            try? await Task.sleep(nanoseconds: UInt64(overlayAutoHideSeconds * 1_000_000_000))
+            await MainActor.run {
+                guard isFullscreen, !isSlideshowPlaying else { return }
+                withAnimation(.easeOut(duration: 0.18)) {
+                    overlaysVisible = false
+                }
+            }
+        }
+    }
+
+    private func cancelOverlayAutoHide() {
+        overlayAutoHideTask?.cancel()
+        overlayAutoHideTask = nil
+    }
+
+    private func stopSlideshowAndRevealOverlays() {
+        pauseSlideshow()
+        overlaysVisible = true
+        scheduleOverlayAutoHide()
+    }
+
     private func advancePhoto(photosCount: Int) {
         guard photosCount > 0 else { return }
         photoIndex = (photoIndex + 1) % photosCount
     }
 
     private func nextCategory(_ d: Int) {
-        pauseSlideshow()
+        stopSlideshowAndRevealOverlays()
         let categories = categoriesSorted()
         if !categories.isEmpty {
             let c = categories.count
@@ -675,7 +722,7 @@ struct ShowcaseView: View {
     }
 
     private func nextSet(_ d: Int) {
-        pauseSlideshow()
+        stopSlideshowAndRevealOverlays()
         let categories = categoriesSorted()
         if !categories.isEmpty {
             let setsForCategory = store.sets.filter { $0.categoryId == categories[safe: categoryIndex]?.id }
@@ -716,7 +763,7 @@ struct ShowcaseView: View {
     }
 
     private func applyPreset(_ preset: LocalLibraryStore.FilterPreset) {
-        pauseSlideshow()
+        stopSlideshowAndRevealOverlays()
         filterModeRaw = preset.mode
         selectedTagIds = Set(preset.tagIds)
         selectedTagIdsRaw = preset.tagIds.joined(separator: ",")
@@ -724,7 +771,7 @@ struct ShowcaseView: View {
     }
 
     private func applyTagFilterSelection() {
-        pauseSlideshow()
+        stopSlideshowAndRevealOverlays()
         let categories = categoriesSorted()
         let setsForCategory = !categories.isEmpty
             ? store.sets.filter { $0.categoryId == categories[safe: categoryIndex]?.id }
