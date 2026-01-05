@@ -147,15 +147,9 @@ struct ShowcaseView: View {
                     }
                     .overlay(alignment: .bottom) {
                         if isFullscreen {
-                            filmstrip(photos: displayPhotos, height: thumbnailHeight)
-                                .padding(.horizontal, 12)
+                            filmstripTray(photos: displayPhotos, height: thumbnailHeight)
                                 .padding(.bottom, 12)
                                 .frame(height: filmstripFrameHeight)
-                                .background {
-                                    RoundedRectangle(cornerRadius: 18)
-                                        .fill(.ultraThinMaterial)
-                                        .allowsHitTesting(false)
-                                }
                                 .opacity(shouldShowFilmstrip ? 1 : 0)
                                 .animation(.easeInOut(duration: 0.15), value: filmstripRequested)
                                 .animation(nil, value: isHorizontalPaging)
@@ -424,7 +418,7 @@ struct ShowcaseView: View {
     }
 
     private func fullscreenPillBar(categoryName: String, setTitle: String, photosCount: Int) -> some View {
-        HStack(spacing: 10) {
+        let content = HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(categoryName)
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
@@ -450,6 +444,12 @@ struct ShowcaseView: View {
         .padding(.vertical, 8)
         .background {
             Capsule().fill(.ultraThinMaterial).allowsHitTesting(false)
+        }
+        .frame(maxWidth: 520)
+        return HStack {
+            Spacer(minLength: 0)
+            content
+            Spacer(minLength: 0)
         }
         .padding(.horizontal, 12)
     }
@@ -564,6 +564,18 @@ struct ShowcaseView: View {
             }
             .padding(.vertical, 10)
         }
+    }
+
+    private func filmstripTray(photos: [DisplayPhoto], height: CGFloat) -> some View {
+        filmstrip(photos: photos, height: height)
+            .padding(8)
+            .background {
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(.ultraThinMaterial)
+                    .allowsHitTesting(false)
+            }
+            .frame(maxWidth: 520)
+            .padding(.horizontal, 12)
     }
 
     private func compactThumbnailRow(photos: [DisplayPhoto], height: CGFloat) -> some View {
