@@ -164,17 +164,6 @@ struct ShowcaseView: View {
                         }
                     }
 
-                    if isFullscreen {
-                        Spacer(minLength: 0)
-                        filmstripTray(photos: displayPhotos, height: filmstripHeightFull)
-                            .frame(height: filmstripHeightFull)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, shelfPadding)
-                            .opacity(shouldShowFilmstrip ? 1 : 0)
-                            .animation(.easeInOut(duration: 0.15), value: filmstripRequested)
-                            .animation(nil, value: isHorizontalPaging)
-                    }
-
                     if !isFullscreen {
                         filmstrip(photos: displayPhotos, height: thumbnailHeight)
                             .padding(.horizontal, 20)
@@ -187,11 +176,24 @@ struct ShowcaseView: View {
                             showcaseCard(note: setNote, priceText: priceText)
                                 .padding(.horizontal, 20)
                         }
+                    } else {
+                        Spacer(minLength: shelfHeight)
                     }
 
                     Spacer(minLength: 0)
                 }
                 .padding(.top, 10)
+                .overlay(alignment: .bottom) {
+                    if isFullscreen {
+                        filmstripTray(photos: displayPhotos, height: filmstripHeightFull)
+                            .frame(height: filmstripHeightFull)
+                            .padding(.horizontal, 12)
+                            .padding(.bottom, shelfPadding)
+                            .opacity(shouldShowFilmstrip ? 1 : 0)
+                            .animation(.easeInOut(duration: 0.15), value: filmstripRequested)
+                            .animation(nil, value: isHorizontalPaging)
+                    }
+                }
             }
         }
         .navigationBarTitleDisplayMode(.inline)
@@ -537,7 +539,6 @@ struct ShowcaseView: View {
         photoView(photo: photo, height: height, corner: isFullscreen ? 22 : 20, useThumbnail: false)
             .aspectRatio(photoAspect, contentMode: .fit)
             .frame(maxWidth: .infinity, maxHeight: height, alignment: .center)
-            .padding(isFullscreen ? 18 : 0)
             .frame(height: height)
     }
 
@@ -546,7 +547,6 @@ struct ShowcaseView: View {
             .fill(Color.gray.opacity(0.16))
             .aspectRatio(photoAspect, contentMode: .fit)
             .frame(maxWidth: .infinity, maxHeight: height, alignment: .center)
-            .padding(isFullscreen ? 18 : 0)
             .frame(height: height)
     }
 
