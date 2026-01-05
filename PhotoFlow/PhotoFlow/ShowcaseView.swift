@@ -107,13 +107,6 @@ struct ShowcaseView: View {
                     }
 
                     ZStack(alignment: .center) {
-                        if isFullscreen {
-                            RoundedRectangle(cornerRadius: 28)
-                                .fill(Color.black.opacity(0.55))
-                                .background(.ultraThinMaterial)
-                                .padding(.horizontal, 12)
-                        }
-
                         Group {
                             if categoryEmpty {
                                 categoryEmptyView(height: mainHeight)
