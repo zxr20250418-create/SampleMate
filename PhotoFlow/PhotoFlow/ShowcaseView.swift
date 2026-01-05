@@ -80,10 +80,12 @@ struct ShowcaseView: View {
         let priceText = usesCategories || usesSets || usesLocal ? "" : (demoSet?.priceText ?? "")
         let categoryEmpty = (usesCategories || usesSets) && filteredSets.isEmpty
         let selectedTagName = tagFilterTitle()
+        let activePhotoID = displayPhotos[safe: photoIndex]?.id ?? "empty"
 
         GeometryReader { proxy in
             let size = proxy.size
             let thumbnailHeight: CGFloat = 102
+            let filmstripFrameHeight: CGFloat = thumbnailHeight + 20
             let mainHeight = isFullscreen ? size.height * 0.72 : size.height * 0.42
 
             ZStack {
@@ -114,38 +116,68 @@ struct ShowcaseView: View {
                                 fallbackMainPhoto(height: mainHeight, isFullscreen: isFullscreen)
                             }
                         }
-                        .gesture(dragGesture())
-                        .gesture(pinchGesture())
-                        .onTapGesture {
-                            if isFullscreen { overlaysVisible.toggle() }
-                        }
+                        .id(activePhotoID)
+                        .transition(.opacity)
+                        .contentShape(Rectangle())
+                        .highPriorityGesture(dragGesture())
+                        .simultaneousGesture(pinchGesture())
+                        .simultaneousGesture(TapGesture().onEnded {
+                            guard isFullscreen else { return }
+                            if isSlideshowPlaying {
+                                pauseSlideshow()
+                            } else {
+                                overlaysVisible.toggle()
+                            }
+                        })
+                        .animation(isFullscreen ? .easeInOut(duration: 0.18) : nil, value: activePhotoID)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.horizontal, 20)
                     .overlay(alignment: .top) {
-                        if isFullscreen && overlaysVisible {
-                            headerBar(categoryName: categoryName,
-                                      setTitle: setTitle,
-                                      tagTitle: selectedTagName,
-                                      photosCount: displayPhotos.count)
-                                .padding(.horizontal, 12)
+                        if isFullscreen && overlaysVisible && !isSlideshowPlaying {
+                            fullscreenPillBar(categoryName: categoryName,
+                                              setTitle: setTitle,
+                                              photosCount: displayPhotos.count)
                                 .padding(.top, 12)
-                                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
                         }
                     }
                     .overlay(alignment: .bottom) {
-                        if isFullscreen && overlaysVisible {
+                        if isFullscreen && overlaysVisible && !isSlideshowPlaying {
                             filmstrip(photos: displayPhotos, height: thumbnailHeight)
                                 .padding(.horizontal, 12)
                                 .padding(.bottom, 12)
-                                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
+                                .frame(height: filmstripFrameHeight)
+                                .background {
+                                    RoundedRectangle(cornerRadius: 18)
+                                        .fill(.ultraThinMaterial)
+                                        .allowsHitTesting(false)
+                                }
+                        }
+                    }
+                    .overlay(alignment: .topTrailing) {
+                        if isFullscreen && isSlideshowPlaying {
+                            Button {
+                                pauseSlideshow()
+                            } label: {
+                                Image(systemName: "pause.fill")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .padding(10)
+                                    .background(.ultraThinMaterial, in: Capsule())
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.top, 12)
+                            .padding(.trailing, 12)
                         }
                     }
 
                     if !isFullscreen {
-                        compactThumbnailRow(photos: displayPhotos, height: thumbnailHeight)
+                        filmstrip(photos: displayPhotos, height: thumbnailHeight)
                             .padding(.horizontal, 20)
-
+                            .background {
+                                RoundedRectangle(cornerRadius: 18)
+                                    .fill(.ultraThinMaterial)
+                                    .allowsHitTesting(false)
+                            }
                         if compactTextVisible {
                             showcaseCard(note: setNote, priceText: priceText)
                                 .padding(.horizontal, 20)
@@ -208,9 +240,11 @@ struct ShowcaseView: View {
         }
         .onChange(of: isFullscreen) { value in
             if value {
+                overlaysVisible = true
                 if slideshowEnabled { startSlideshow(photosCount: displayPhotos.count) }
             } else {
                 pauseSlideshow()
+                overlaysVisible = true
             }
         }
         .onChange(of: slideshowIntervalSeconds) { _ in
@@ -233,6 +267,7 @@ struct ShowcaseView: View {
             applyTagFilterSelection()
         }
         .onChange(of: store.categories) { _ in
+            pauseSlideshow()
             let categories = categoriesSorted()
             if categoryIndex >= categories.count { categoryIndex = 0 }
             if !categories.isEmpty {
@@ -244,6 +279,7 @@ struct ShowcaseView: View {
             }
         }
         .onChange(of: categoryIndex) { _ in
+            pauseSlideshow()
             let categories = categoriesSorted()
             if !categories.isEmpty {
                 let setsForCategory = store.sets.filter { $0.categoryId == categories[safe: categoryIndex]?.id }
@@ -254,6 +290,7 @@ struct ShowcaseView: View {
             }
         }
         .onChange(of: store.sets) { _ in
+            pauseSlideshow()
             let categories = categoriesSorted()
             if !categories.isEmpty {
                 let setsForCategory = store.sets.filter { $0.categoryId == categories[safe: categoryIndex]?.id }
@@ -351,18 +388,6 @@ struct ShowcaseView: View {
                     .background(.white.opacity(0.9), in: Capsule())
             }
             .buttonStyle(.plain)
-            if isFullscreen {
-                Button {
-                    if isSlideshowPlaying { pauseSlideshow() }
-                    else { startSlideshow(photosCount: photosCount) }
-                } label: {
-                    Text(isSlideshowPlaying ? "showcase.pause" : "showcase.play")
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
-                        .padding(.horizontal, 10).padding(.vertical, 6)
-                        .background(.white.opacity(0.9), in: Capsule())
-                }
-                .buttonStyle(.plain)
-            }
             Text("\(min(photoIndex + 1, photosCount))/\(max(photosCount, 1))")
                 .font(.system(size: 12, weight: .semibold, design: .rounded))
                 .padding(.horizontal, 10).padding(.vertical, 6)
@@ -373,6 +398,37 @@ struct ShowcaseView: View {
                 .background(.white, in: Capsule())
         }
         .padding(.vertical, 8)
+    }
+
+    private func fullscreenPillBar(categoryName: String, setTitle: String, photosCount: Int) -> some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(categoryName)
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                Text(setTitle)
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Text("\(min(photoIndex + 1, photosCount))/\(max(photosCount, 1))")
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+            Button {
+                if isSlideshowPlaying { pauseSlideshow() }
+                else { startSlideshow(photosCount: photosCount) }
+            } label: {
+                Image(systemName: isSlideshowPlaying ? "pause.fill" : "play.fill")
+                    .font(.system(size: 10, weight: .bold))
+                    .padding(6)
+                    .background(.white.opacity(0.9), in: Capsule())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background {
+            Capsule().fill(.ultraThinMaterial).allowsHitTesting(false)
+        }
+        .padding(.horizontal, 12)
     }
 
     private var presetSheet: some View {
@@ -581,6 +637,7 @@ struct ShowcaseView: View {
         guard photosCount > 0 else { return }
         pauseSlideshow()
         isSlideshowPlaying = true
+        overlaysVisible = false
         slideshowTimer = Timer.scheduledTimer(withTimeInterval: TimeInterval(slideshowIntervalSeconds), repeats: true) { _ in
             advancePhoto(photosCount: photosCount)
         }
@@ -598,6 +655,7 @@ struct ShowcaseView: View {
     }
 
     private func nextCategory(_ d: Int) {
+        pauseSlideshow()
         let categories = categoriesSorted()
         if !categories.isEmpty {
             let c = categories.count
@@ -617,6 +675,7 @@ struct ShowcaseView: View {
     }
 
     private func nextSet(_ d: Int) {
+        pauseSlideshow()
         let categories = categoriesSorted()
         if !categories.isEmpty {
             let setsForCategory = store.sets.filter { $0.categoryId == categories[safe: categoryIndex]?.id }
@@ -657,6 +716,7 @@ struct ShowcaseView: View {
     }
 
     private func applyPreset(_ preset: LocalLibraryStore.FilterPreset) {
+        pauseSlideshow()
         filterModeRaw = preset.mode
         selectedTagIds = Set(preset.tagIds)
         selectedTagIdsRaw = preset.tagIds.joined(separator: ",")
@@ -664,6 +724,7 @@ struct ShowcaseView: View {
     }
 
     private func applyTagFilterSelection() {
+        pauseSlideshow()
         let categories = categoriesSorted()
         let setsForCategory = !categories.isEmpty
             ? store.sets.filter { $0.categoryId == categories[safe: categoryIndex]?.id }
