@@ -409,24 +409,26 @@ struct ShowcaseView: View {
                     .background(.white.opacity(0.9), in: Capsule())
             }
             .buttonStyle(.plain)
-            Text("\(min(photoIndex + 1, photosCount))/\(max(photosCount, 1))")
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                .padding(.horizontal, 10).padding(.vertical, 6)
-                .background(.white.opacity(0.9), in: Capsule())
-            Button {
-                userPressedPlayPause(photosCount: photosCount)
-            } label: {
-                Image(systemName: isSlideshowPlaying ? "pause.fill" : "play.fill")
-                    .font(.system(size: 11, weight: .bold))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 6)
+            HStack(spacing: 8) {
+                Text("\(min(photoIndex + 1, photosCount))/\(max(photosCount, 1))")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .padding(.horizontal, 10).padding(.vertical, 6)
                     .background(.white.opacity(0.9), in: Capsule())
+                Button {
+                    userPressedPlayPause(photosCount: photosCount)
+                } label: {
+                    Image(systemName: isSlideshowPlaying ? "pause.fill" : "play.fill")
+                        .font(.system(size: 11, weight: .bold))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 6)
+                        .background(.white.opacity(0.9), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                Text(isFullscreen ? "Full" : "Compact")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .padding(.horizontal, 10).padding(.vertical, 6)
+                    .background(.white, in: Capsule())
             }
-            .buttonStyle(.plain)
-            Text(isFullscreen ? "Full" : "Compact")
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                .padding(.horizontal, 10).padding(.vertical, 6)
-                .background(.white, in: Capsule())
         }
         .padding(.vertical, 8)
     }
