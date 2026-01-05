@@ -1,6 +1,7 @@
 import Foundation
 import PhotosUI
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct LibraryView: View {
     @StateObject private var store = LocalLibraryStore()
@@ -319,7 +320,7 @@ struct LibraryView: View {
             }
             .fileExporter(isPresented: $showBackupExporter,
                           document: backupDocument,
-                          contentType: .sampleMateBackup,
+                          contentType: UTType.sampleMateBackup,
                           defaultFilename: "SampleMateBackup") { result in
                 if case .failure = result {
                     restoreErrorMessage = "导出失败"
@@ -327,7 +328,7 @@ struct LibraryView: View {
                 }
             }
             .fileImporter(isPresented: $showBackupImporter,
-                          allowedContentTypes: [.sampleMateBackup]) { result in
+                          allowedContentTypes: [UTType.sampleMateBackup]) { result in
                 switch result {
                 case .success(let url):
                     let access = url.startAccessingSecurityScopedResource()

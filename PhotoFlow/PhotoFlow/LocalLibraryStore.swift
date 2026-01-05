@@ -568,7 +568,7 @@ final class LocalLibraryStore: ObservableObject {
 
     @MainActor
     func restore(from document: SampleMateBackupDocument) async throws {
-        let rootWrapper = document.rootFileWrapper
+        let rootWrapper = document.rootFileWrapper.value
         guard rootWrapper.isDirectory else { return }
         let rootURL = applicationSupportDirectory()
         let tempURL = rootURL.appendingPathComponent("RestoreTemp-\(UUID().uuidString)", isDirectory: true)
