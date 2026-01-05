@@ -539,7 +539,6 @@ struct ShowcaseView: View {
         photoView(photo: photo, height: height, corner: isFullscreen ? 22 : 20, useThumbnail: false)
             .aspectRatio(photoAspect, contentMode: .fit)
             .frame(maxWidth: .infinity, maxHeight: height, alignment: .center)
-            .padding(isFullscreen ? 18 : 0)
             .frame(height: height)
     }
 
@@ -548,7 +547,6 @@ struct ShowcaseView: View {
             .fill(Color.gray.opacity(0.16))
             .aspectRatio(photoAspect, contentMode: .fit)
             .frame(maxWidth: .infinity, maxHeight: height, alignment: .center)
-            .padding(isFullscreen ? 18 : 0)
             .frame(height: height)
     }
 
