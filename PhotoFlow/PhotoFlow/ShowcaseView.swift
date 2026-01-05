@@ -94,6 +94,9 @@ struct ShowcaseView: View {
             let shouldShowFilmstrip = isFullscreen
                 ? (filmstripRequested && !isSlideshowPlaying && !isHorizontalPaging)
                 : true
+            let filmstripHeightFull: CGFloat = 112
+            let shelfPadding: CGFloat = 12
+            let shelfHeight: CGFloat = filmstripHeightFull + shelfPadding * 2
 
             ZStack {
                 Color(.systemGroupedBackground).ignoresSafeArea()
@@ -145,16 +148,6 @@ struct ShowcaseView: View {
                                 .padding(.top, 12)
                         }
                     }
-                    .overlay(alignment: .bottom) {
-                        if isFullscreen {
-                            filmstripTray(photos: displayPhotos, height: thumbnailHeight)
-                                .padding(.bottom, 12)
-                                .frame(height: filmstripFrameHeight)
-                                .opacity(shouldShowFilmstrip ? 1 : 0)
-                                .animation(.easeInOut(duration: 0.15), value: filmstripRequested)
-                                .animation(nil, value: isHorizontalPaging)
-                        }
-                    }
                     .overlay(alignment: .topTrailing) {
                         if isFullscreen && isSlideshowPlaying {
                             Button {
@@ -169,6 +162,17 @@ struct ShowcaseView: View {
                             .padding(.top, 12)
                             .padding(.trailing, 12)
                         }
+                    }
+
+                    if isFullscreen {
+                        Spacer(minLength: 0)
+                        filmstripTray(photos: displayPhotos, height: filmstripHeightFull)
+                            .frame(height: filmstripHeightFull)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, shelfPadding)
+                            .opacity(shouldShowFilmstrip ? 1 : 0)
+                            .animation(.easeInOut(duration: 0.15), value: filmstripRequested)
+                            .animation(nil, value: isHorizontalPaging)
                     }
 
                     if !isFullscreen {
