@@ -144,29 +144,7 @@ struct LibraryView: View {
                     }
                 }
 
-                Section("备份/恢复") {
-                    Button {
-                        do {
-                            backupDocument = try store.makeBackupDocument()
-                            showBackupExporter = true
-                        } catch {
-                            restoreErrorMessage = "导出失败"
-                            showRestoreError = true
-                        }
-                    } label: {
-                        Label("导出备份", systemImage: "square.and.arrow.up")
-                            .font(.system(size: 15, weight: .semibold, design: .rounded))
-                    }
-                    .buttonStyle(.plain)
-
-                    Button {
-                        showBackupImporter = true
-                    } label: {
-                        Label("导入备份", systemImage: "square.and.arrow.down")
-                            .font(.system(size: 15, weight: .semibold, design: .rounded))
-                    }
-                    .buttonStyle(.plain)
-                }
+                backupSection
 
                 ForEach(setGroups()) { group in
                     Section("Sets · \(group.title)") {
@@ -322,33 +300,11 @@ struct LibraryView: View {
                           document: backupDocument,
                           contentType: UTType.sampleMateBackup,
                           defaultFilename: "SampleMateBackup") { result in
-                if case .failure = result {
-                    restoreErrorMessage = "导出失败"
-                    showRestoreError = true
-                }
+                handleExport(result: result)
             }
             .fileImporter(isPresented: $showBackupImporter,
                           allowedContentTypes: [UTType.sampleMateBackup]) { result in
-                switch result {
-                case .success(let url):
-                    let access = url.startAccessingSecurityScopedResource()
-                    defer {
-                        if access {
-                            url.stopAccessingSecurityScopedResource()
-                        }
-                    }
-                    do {
-                        let wrapper = try FileWrapper(url: url, options: .immediate)
-                        pendingRestoreDocument = SampleMateBackupDocument(rootFileWrapper: wrapper)
-                        showRestoreConfirm = true
-                    } catch {
-                        restoreErrorMessage = "导入失败"
-                        showRestoreError = true
-                    }
-                case .failure:
-                    restoreErrorMessage = "导入失败"
-                    showRestoreError = true
-                }
+                handleImport(result: result)
             }
             .overlay {
                 if isRestoringBackup {
@@ -367,6 +323,68 @@ struct LibraryView: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMdd HH:mm"
         return "套图 \(formatter.string(from: Date()))"
+    }
+
+    private var backupSection: some View {
+        Section("备份/恢复") {
+            Group {
+                Button {
+                    startExport()
+                } label: {
+                    Label("导出备份", systemImage: "square.and.arrow.up")
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    showBackupImporter = true
+                } label: {
+                    Label("导入备份", systemImage: "square.and.arrow.down")
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private func startExport() {
+        do {
+            backupDocument = try store.makeBackupDocument()
+            showBackupExporter = true
+        } catch {
+            restoreErrorMessage = "导出失败"
+            showRestoreError = true
+        }
+    }
+
+    private func handleExport(result: Result<URL, Error>) {
+        if case .failure = result {
+            restoreErrorMessage = "导出失败"
+            showRestoreError = true
+        }
+    }
+
+    private func handleImport(result: Result<URL, Error>) {
+        switch result {
+        case .success(let url):
+            let access = url.startAccessingSecurityScopedResource()
+            defer {
+                if access {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
+            do {
+                let wrapper = try FileWrapper(url: url, options: .immediate)
+                pendingRestoreDocument = SampleMateBackupDocument(rootFileWrapper: wrapper)
+                showRestoreConfirm = true
+            } catch {
+                restoreErrorMessage = "导入失败"
+                showRestoreError = true
+            }
+        case .failure:
+            restoreErrorMessage = "导入失败"
+            showRestoreError = true
+        }
     }
 
     private func categoriesSorted() -> [LocalLibraryStore.DisplayCategory] {
