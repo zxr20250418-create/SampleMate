@@ -28,6 +28,8 @@ struct ShowcaseView: View {
     @State private var isSlideshowPlaying = false
     @State private var slideshowTimer: Timer?
     @State private var overlayAutoHideTask: Task<Void, Never>?
+    @State private var filmstripRequested = false
+    @GestureState private var isHorizontalPaging = false
 
     @Environment(\.scenePhase) private var scenePhase
 
@@ -89,6 +91,12 @@ struct ShowcaseView: View {
             let thumbnailHeight: CGFloat = 102
             let filmstripFrameHeight: CGFloat = thumbnailHeight + 20
             let mainHeight = isFullscreen ? size.height * 0.72 : size.height * 0.42
+            let shouldShowFilmstrip = isFullscreen
+                ? (filmstripRequested && !isSlideshowPlaying && !isHorizontalPaging)
+                : true
+            let filmstripHeightFull: CGFloat = 112
+            let shelfPadding: CGFloat = 12
+            let shelfHeight: CGFloat = filmstripHeightFull + shelfPadding * 2
 
             ZStack {
                 Color(.systemGroupedBackground).ignoresSafeArea()
@@ -102,13 +110,6 @@ struct ShowcaseView: View {
                     }
 
                     ZStack(alignment: .center) {
-                        if isFullscreen {
-                            RoundedRectangle(cornerRadius: 28)
-                                .fill(Color.black.opacity(0.55))
-                                .background(.ultraThinMaterial)
-                                .padding(.horizontal, 12)
-                        }
-
                         Group {
                             if categoryEmpty {
                                 categoryEmptyView(height: mainHeight)
@@ -126,12 +127,11 @@ struct ShowcaseView: View {
                         .simultaneousGesture(TapGesture().onEnded {
                             guard isFullscreen else { return }
                             if isSlideshowPlaying {
-                                stopSlideshowAndRevealOverlays()
+                                stopSlideshowAndRevealFilmstrip()
                             } else {
-                                let next = !overlaysVisible
-                                withAnimation(.easeOut(duration: 0.18)) {
-                                    overlaysVisible = next
-                                }
+                                let next = !filmstripRequested
+                                filmstripRequested = next
+                                overlaysVisible = next
                                 if next { scheduleOverlayAutoHide() }
                                 else { cancelOverlayAutoHide() }
                             }
@@ -148,23 +148,10 @@ struct ShowcaseView: View {
                                 .padding(.top, 12)
                         }
                     }
-                    .overlay(alignment: .bottom) {
-                        if isFullscreen && overlaysVisible && !isSlideshowPlaying {
-                            filmstrip(photos: displayPhotos, height: thumbnailHeight)
-                                .padding(.horizontal, 12)
-                                .padding(.bottom, 12)
-                                .frame(height: filmstripFrameHeight)
-                                .background {
-                                    RoundedRectangle(cornerRadius: 18)
-                                        .fill(.ultraThinMaterial)
-                                        .allowsHitTesting(false)
-                                }
-                        }
-                    }
                     .overlay(alignment: .topTrailing) {
                         if isFullscreen && isSlideshowPlaying {
                             Button {
-                                stopSlideshowAndRevealOverlays()
+                                stopSlideshowAndRevealFilmstrip()
                             } label: {
                                 Image(systemName: "pause.fill")
                                     .font(.system(size: 11, weight: .bold))
@@ -175,6 +162,17 @@ struct ShowcaseView: View {
                             .padding(.top, 12)
                             .padding(.trailing, 12)
                         }
+                    }
+
+                    if isFullscreen {
+                        Spacer(minLength: 0)
+                        filmstripTray(photos: displayPhotos, height: filmstripHeightFull)
+                            .frame(height: filmstripHeightFull)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, shelfPadding)
+                            .opacity(shouldShowFilmstrip ? 1 : 0)
+                            .animation(.easeInOut(duration: 0.15), value: filmstripRequested)
+                            .animation(nil, value: isHorizontalPaging)
                     }
 
                     if !isFullscreen {
@@ -248,6 +246,7 @@ struct ShowcaseView: View {
         .onChange(of: isFullscreen) { value in
             if value {
                 overlaysVisible = true
+                filmstripRequested = false
                 if slideshowEnabled {
                     startSlideshow(photosCount: displayPhotos.count)
                 } else {
@@ -257,6 +256,7 @@ struct ShowcaseView: View {
                 pauseSlideshow()
                 cancelOverlayAutoHide()
                 overlaysVisible = true
+                filmstripRequested = false
             }
         }
         .onChange(of: slideshowIntervalSeconds) { _ in
@@ -300,7 +300,7 @@ struct ShowcaseView: View {
             }
         }
         .onChange(of: categoryIndex) { _ in
-            stopSlideshowAndRevealOverlays()
+            stopSlideshowOnly()
             let categories = categoriesSorted()
             if !categories.isEmpty {
                 let setsForCategory = store.sets.filter { $0.categoryId == categories[safe: categoryIndex]?.id }
@@ -409,20 +409,32 @@ struct ShowcaseView: View {
                     .background(.white.opacity(0.9), in: Capsule())
             }
             .buttonStyle(.plain)
-            Text("\(min(photoIndex + 1, photosCount))/\(max(photosCount, 1))")
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                .padding(.horizontal, 10).padding(.vertical, 6)
-                .background(.white.opacity(0.9), in: Capsule())
-            Text(isFullscreen ? "Full" : "Compact")
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                .padding(.horizontal, 10).padding(.vertical, 6)
-                .background(.white, in: Capsule())
+            HStack(spacing: 8) {
+                Text("\(min(photoIndex + 1, photosCount))/\(max(photosCount, 1))")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .padding(.horizontal, 10).padding(.vertical, 6)
+                    .background(.white.opacity(0.9), in: Capsule())
+                Button {
+                    userPressedPlayPause(photosCount: photosCount)
+                } label: {
+                    Image(systemName: isSlideshowPlaying ? "pause.fill" : "play.fill")
+                        .font(.system(size: 11, weight: .bold))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 6)
+                        .background(.white.opacity(0.9), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                Text(isFullscreen ? "Full" : "Compact")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .padding(.horizontal, 10).padding(.vertical, 6)
+                    .background(.white, in: Capsule())
+            }
         }
         .padding(.vertical, 8)
     }
 
     private func fullscreenPillBar(categoryName: String, setTitle: String, photosCount: Int) -> some View {
-        HStack(spacing: 10) {
+        let content = HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(categoryName)
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
@@ -434,13 +446,12 @@ struct ShowcaseView: View {
             Text("\(min(photoIndex + 1, photosCount))/\(max(photosCount, 1))")
                 .font(.system(size: 11, weight: .semibold, design: .rounded))
             Button {
-                if isSlideshowPlaying { stopSlideshowAndRevealOverlays() }
-                else { startSlideshow(photosCount: photosCount) }
-            } label: {
-                Image(systemName: isSlideshowPlaying ? "pause.fill" : "play.fill")
-                    .font(.system(size: 10, weight: .bold))
-                    .padding(6)
-                    .background(.white.opacity(0.9), in: Capsule())
+            userPressedPlayPause(photosCount: photosCount)
+        } label: {
+            Image(systemName: isSlideshowPlaying ? "pause.fill" : "play.fill")
+                .font(.system(size: 10, weight: .bold))
+                .padding(6)
+                .background(.white.opacity(0.9), in: Capsule())
             }
             .buttonStyle(.plain)
         }
@@ -448,6 +459,12 @@ struct ShowcaseView: View {
         .padding(.vertical, 8)
         .background {
             Capsule().fill(.ultraThinMaterial).allowsHitTesting(false)
+        }
+        .frame(maxWidth: 520)
+        return HStack {
+            Spacer(minLength: 0)
+            content
+            Spacer(minLength: 0)
         }
         .padding(.horizontal, 12)
     }
@@ -555,13 +572,25 @@ struct ShowcaseView: View {
             HStack(spacing: 12) {
                 ForEach(Array(photos.enumerated()), id: \.offset) { idx, p in
                     thumbnailButton(photo: p, height: height, isSelected: idx == photoIndex) {
-                        stopSlideshowAndRevealOverlays()
+                        stopSlideshowOnly()
                         photoIndex = idx
                     }
                 }
             }
             .padding(.vertical, 10)
         }
+    }
+
+    private func filmstripTray(photos: [DisplayPhoto], height: CGFloat) -> some View {
+        filmstrip(photos: photos, height: height)
+            .padding(8)
+            .background {
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(.ultraThinMaterial)
+                    .allowsHitTesting(false)
+            }
+            .frame(maxWidth: 520)
+            .padding(.horizontal, 12)
     }
 
     private func compactThumbnailRow(photos: [DisplayPhoto], height: CGFloat) -> some View {
@@ -635,22 +664,38 @@ struct ShowcaseView: View {
     }
 
     private func dragGesture() -> some Gesture {
-        DragGesture(minimumDistance: 18).onEnded { v in
-            let dx = v.translation.width, dy = v.translation.height
-            if abs(dx) > abs(dy) {
-                if dx <= -60 { stopSlideshowAndRevealOverlays(); nextSet(1) }
-                else if dx >= 60 { stopSlideshowAndRevealOverlays(); nextSet(-1) }
-            } else {
-                if dy <= -60 { stopSlideshowAndRevealOverlays(); nextCategory(1) }
-                else if dy >= 60 { stopSlideshowAndRevealOverlays(); nextCategory(-1) }
+        DragGesture(minimumDistance: 18)
+            .updating($isHorizontalPaging) { value, state, _ in
+                let dx = value.translation.width
+                let dy = value.translation.height
+                if abs(dx) > abs(dy), abs(dx) > 24 {
+                    state = true
+                }
             }
-        }
+            .onChanged { value in
+                guard isFullscreen else { return }
+                let dx = value.translation.width
+                let dy = value.translation.height
+                if abs(dx) > abs(dy), abs(dx) > 24 {
+                    filmstripRequested = false
+                }
+            }
+            .onEnded { v in
+                let dx = v.translation.width, dy = v.translation.height
+                if abs(dx) > abs(dy) {
+                    if dx <= -60 { stopSlideshowOnly(); nextSet(1) }
+                    else if dx >= 60 { stopSlideshowOnly(); nextSet(-1) }
+                } else {
+                    if dy <= -60 { stopSlideshowOnly(); nextCategory(1) }
+                    else if dy >= 60 { stopSlideshowOnly(); nextCategory(-1) }
+                }
+            }
     }
 
     private func pinchGesture() -> some Gesture {
         MagnificationGesture().onEnded { value in
-            if value > 1.08 { stopSlideshowAndRevealOverlays(); isFullscreen = true }
-            else if value < 0.92 { stopSlideshowAndRevealOverlays(); isFullscreen = false }
+            if value > 1.08 { stopSlideshowOnly(); isFullscreen = true }
+            else if value < 0.92 { stopSlideshowOnly(); isFullscreen = false }
         }
     }
 
@@ -659,6 +704,7 @@ struct ShowcaseView: View {
         pauseSlideshow()
         isSlideshowPlaying = true
         overlaysVisible = false
+        filmstripRequested = false
         cancelOverlayAutoHide()
         slideshowTimer = Timer.scheduledTimer(withTimeInterval: TimeInterval(slideshowIntervalSeconds), repeats: true) { _ in
             advancePhoto(photosCount: photosCount)
@@ -673,14 +719,13 @@ struct ShowcaseView: View {
 
     private func scheduleOverlayAutoHide() {
         cancelOverlayAutoHide()
-        guard isFullscreen, !isSlideshowPlaying, overlaysVisible else { return }
+        guard isFullscreen, !isSlideshowPlaying, filmstripRequested else { return }
         overlayAutoHideTask = Task {
             try? await Task.sleep(nanoseconds: UInt64(overlayAutoHideSeconds * 1_000_000_000))
             await MainActor.run {
                 guard isFullscreen, !isSlideshowPlaying else { return }
-                withAnimation(.easeOut(duration: 0.18)) {
-                    overlaysVisible = false
-                }
+                overlaysVisible = false
+                filmstripRequested = false
             }
         }
     }
@@ -690,10 +735,28 @@ struct ShowcaseView: View {
         overlayAutoHideTask = nil
     }
 
-    private func stopSlideshowAndRevealOverlays() {
+    private func stopSlideshowAndRevealFilmstrip() {
         pauseSlideshow()
         overlaysVisible = true
+        filmstripRequested = true
         scheduleOverlayAutoHide()
+    }
+
+    private func stopSlideshowOnly() {
+        pauseSlideshow()
+        cancelOverlayAutoHide()
+    }
+
+    private func userPressedPlayPause(photosCount: Int) {
+        if isSlideshowPlaying {
+            pauseSlideshow()
+            return
+        }
+        if !isFullscreen { isFullscreen = true }
+        startSlideshow(photosCount: photosCount)
+        overlaysVisible = false
+        filmstripRequested = false
+        cancelOverlayAutoHide()
     }
 
     private func advancePhoto(photosCount: Int) {
@@ -702,7 +765,7 @@ struct ShowcaseView: View {
     }
 
     private func nextCategory(_ d: Int) {
-        stopSlideshowAndRevealOverlays()
+        stopSlideshowOnly()
         let categories = categoriesSorted()
         if !categories.isEmpty {
             let c = categories.count
@@ -722,7 +785,7 @@ struct ShowcaseView: View {
     }
 
     private func nextSet(_ d: Int) {
-        stopSlideshowAndRevealOverlays()
+        stopSlideshowOnly()
         let categories = categoriesSorted()
         if !categories.isEmpty {
             let setsForCategory = store.sets.filter { $0.categoryId == categories[safe: categoryIndex]?.id }
@@ -763,7 +826,7 @@ struct ShowcaseView: View {
     }
 
     private func applyPreset(_ preset: LocalLibraryStore.FilterPreset) {
-        stopSlideshowAndRevealOverlays()
+        stopSlideshowOnly()
         filterModeRaw = preset.mode
         selectedTagIds = Set(preset.tagIds)
         selectedTagIdsRaw = preset.tagIds.joined(separator: ",")
@@ -771,7 +834,7 @@ struct ShowcaseView: View {
     }
 
     private func applyTagFilterSelection() {
-        stopSlideshowAndRevealOverlays()
+        stopSlideshowOnly()
         let categories = categoriesSorted()
         let setsForCategory = !categories.isEmpty
             ? store.sets.filter { $0.categoryId == categories[safe: categoryIndex]?.id }
