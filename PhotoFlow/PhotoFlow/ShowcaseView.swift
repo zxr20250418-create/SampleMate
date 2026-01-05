@@ -187,6 +187,20 @@ struct ShowcaseView: View {
                             showcaseCard(note: setNote, priceText: priceText)
                                 .padding(.horizontal, 20)
                         }
+                        Button {
+                            userPressedPlayPause(photosCount: displayPhotos.count)
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: isSlideshowPlaying ? "pause.fill" : "play.fill")
+                                Text(isSlideshowPlaying ? "showcase.pause" : "showcase.play")
+                            }
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(.white.opacity(0.9), in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.horizontal, 20)
                     }
 
                     Spacer(minLength: 0)
@@ -434,13 +448,12 @@ struct ShowcaseView: View {
             Text("\(min(photoIndex + 1, photosCount))/\(max(photosCount, 1))")
                 .font(.system(size: 11, weight: .semibold, design: .rounded))
             Button {
-                if isSlideshowPlaying { stopSlideshowAndRevealFilmstrip() }
-                else { startSlideshow(photosCount: photosCount) }
-            } label: {
-                Image(systemName: isSlideshowPlaying ? "pause.fill" : "play.fill")
-                    .font(.system(size: 10, weight: .bold))
-                    .padding(6)
-                    .background(.white.opacity(0.9), in: Capsule())
+            userPressedPlayPause(photosCount: photosCount)
+        } label: {
+            Image(systemName: isSlideshowPlaying ? "pause.fill" : "play.fill")
+                .font(.system(size: 10, weight: .bold))
+                .padding(6)
+                .background(.white.opacity(0.9), in: Capsule())
             }
             .buttonStyle(.plain)
         }
@@ -733,6 +746,18 @@ struct ShowcaseView: View {
 
     private func stopSlideshowOnly() {
         pauseSlideshow()
+        cancelOverlayAutoHide()
+    }
+
+    private func userPressedPlayPause(photosCount: Int) {
+        if isSlideshowPlaying {
+            pauseSlideshow()
+            return
+        }
+        if !isFullscreen { isFullscreen = true }
+        startSlideshow(photosCount: photosCount)
+        overlaysVisible = false
+        filmstripRequested = false
         cancelOverlayAutoHide()
     }
 
