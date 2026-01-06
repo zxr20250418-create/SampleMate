@@ -122,7 +122,7 @@ struct LibraryView: View {
             .fileExporter(isPresented: $showBackupExporter,
                           document: backupDocument,
                           contentType: UTType.sampleMateBackup,
-                          defaultFilename: "SampleMateBackup") { result in
+                          defaultFilename: "SampleMateBackup.samplematebackup") { result in
                 handleExport(result: result)
             }
             .fileImporter(isPresented: $showBackupImporter,
@@ -393,8 +393,8 @@ struct LibraryView: View {
                 }
             }
             do {
-                let wrapper = try FileWrapper(url: url, options: .immediate)
-                pendingRestoreDocument = SampleMateBackupDocument(rootFileWrapper: wrapper)
+                let data = try Data(contentsOf: url)
+                pendingRestoreDocument = SampleMateBackupDocument(data: data)
                 showRestoreConfirm = true
             } catch {
                 restoreErrorMessage = "导入失败"

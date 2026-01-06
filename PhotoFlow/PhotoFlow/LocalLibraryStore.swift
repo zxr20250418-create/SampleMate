@@ -537,52 +537,35 @@ final class LocalLibraryStore: ObservableObject {
     }
 
     func makeBackupDocument() throws -> SampleMateBackupDocument {
-        let rootURL = applicationSupportDirectory()
-        let fileNames = [
-            catalogFileName,
-            setsFileName,
-            categoriesFileName,
-            tagsFileName,
-            setTagLinksFileName,
-            presetsFileName
-        ]
-        var wrappers: [String: FileWrapper] = [:]
-        for name in fileNames {
-            let url = rootURL.appendingPathComponent(name)
-            if fileManager.fileExists(atPath: url.path) {
-                wrappers[name] = try FileWrapper(url: url, options: .immediate)
-            }
-        }
-
-        let photosURL = photosDirectory()
-        if fileManager.fileExists(atPath: photosURL.path) {
-            wrappers[photosFolderName] = try FileWrapper(url: photosURL, options: .immediate)
-        }
-        let thumbsURL = thumbsDirectory()
-        if fileManager.fileExists(atPath: thumbsURL.path) {
-            wrappers[thumbsFolderName] = try FileWrapper(url: thumbsURL, options: .immediate)
-        }
-
-        return SampleMateBackupDocument(rootFileWrapper: FileWrapper(directoryWithFileWrappers: wrappers))
+        let payload = BackupPayload(version: 1,
+                                    createdAt: Date(),
+                                    files: try backupFileEntries())
+        let data = try JSONEncoder().encode(payload)
+        return SampleMateBackupDocument(data: data)
     }
 
     @MainActor
     func restore(from document: SampleMateBackupDocument) async throws {
-        let rootWrapper = document.rootFileWrapper.value
-        guard rootWrapper.isDirectory else { return }
+        guard !document.data.isEmpty else { return }
+        let payload = try JSONDecoder().decode(BackupPayload.self, from: document.data)
         let rootURL = applicationSupportDirectory()
         let tempURL = rootURL.appendingPathComponent("RestoreTemp-\(UUID().uuidString)", isDirectory: true)
         try fileManager.createDirectory(at: tempURL, withIntermediateDirectories: true)
 
-        let wrappers = rootWrapper.fileWrappers ?? [:]
-        for (name, wrapper) in wrappers {
-            let url = tempURL.appendingPathComponent(name, isDirectory: wrapper.isDirectory)
-            try wrapper.write(to: url, options: .atomic, originalContentsURL: nil)
+        var topLevel: Set<String> = []
+        for entry in payload.files {
+            let targetURL = tempURL.appendingPathComponent(entry.path)
+            try fileManager.createDirectory(at: targetURL.deletingLastPathComponent(),
+                                            withIntermediateDirectories: true)
+            try entry.data.write(to: targetURL, options: .atomic)
+            if let first = entry.path.split(separator: "/").first {
+                topLevel.insert(String(first))
+            }
         }
 
-        for (name, wrapper) in wrappers {
-            let tempItemURL = tempURL.appendingPathComponent(name, isDirectory: wrapper.isDirectory)
-            let destURL = rootURL.appendingPathComponent(name, isDirectory: wrapper.isDirectory)
+        for name in topLevel {
+            let tempItemURL = tempURL.appendingPathComponent(name)
+            let destURL = rootURL.appendingPathComponent(name)
             if fileManager.fileExists(atPath: destURL.path) {
                 try fileManager.removeItem(at: destURL)
             }
@@ -652,6 +635,52 @@ final class LocalLibraryStore: ObservableObject {
 
     private func presetsURL() -> URL {
         applicationSupportDirectory().appendingPathComponent(presetsFileName)
+    }
+
+    private struct BackupPayload: Codable {
+        let version: Int
+        let createdAt: Date
+        let files: [BackupFile]
+    }
+
+    private struct BackupFile: Codable {
+        let path: String
+        let data: Data
+    }
+
+    private func backupFileEntries() throws -> [BackupFile] {
+        let rootURL = applicationSupportDirectory()
+        let fileNames = [
+            catalogFileName,
+            setsFileName,
+            categoriesFileName,
+            tagsFileName,
+            setTagLinksFileName,
+            presetsFileName
+        ]
+        var entries: [BackupFile] = []
+        for name in fileNames {
+            let url = rootURL.appendingPathComponent(name)
+            guard fileManager.fileExists(atPath: url.path) else { continue }
+            let data = try Data(contentsOf: url)
+            entries.append(BackupFile(path: name, data: data))
+        }
+
+        let mediaRoots = [photosDirectory(), thumbsDirectory()]
+        for root in mediaRoots {
+            guard fileManager.fileExists(atPath: root.path) else { continue }
+            let enumerator = fileManager.enumerator(at: root,
+                                                    includingPropertiesForKeys: [.isDirectoryKey],
+                                                    options: [.skipsHiddenFiles])
+            while let url = enumerator?.nextObject() as? URL {
+                let values = try url.resourceValues(forKeys: [.isDirectoryKey])
+                if values.isDirectory == true { continue }
+                let relPath = url.path.replacingOccurrences(of: rootURL.path + "/", with: "")
+                let data = try Data(contentsOf: url)
+                entries.append(BackupFile(path: relPath, data: data))
+            }
+        }
+        return entries
     }
 
     private func loadCatalog() async {
