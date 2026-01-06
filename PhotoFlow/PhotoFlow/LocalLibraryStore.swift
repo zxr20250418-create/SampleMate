@@ -666,20 +666,6 @@ final class LocalLibraryStore: ObservableObject {
             entries.append(BackupFile(path: name, data: data))
         }
 
-        let mediaRoots = [photosDirectory(), thumbsDirectory()]
-        for root in mediaRoots {
-            guard fileManager.fileExists(atPath: root.path) else { continue }
-            let enumerator = fileManager.enumerator(at: root,
-                                                    includingPropertiesForKeys: [.isDirectoryKey],
-                                                    options: [.skipsHiddenFiles])
-            while let url = enumerator?.nextObject() as? URL {
-                let values = try url.resourceValues(forKeys: [.isDirectoryKey])
-                if values.isDirectory == true { continue }
-                let relPath = url.path.replacingOccurrences(of: rootURL.path + "/", with: "")
-                let data = try Data(contentsOf: url)
-                entries.append(BackupFile(path: relPath, data: data))
-            }
-        }
         return entries
     }
 
