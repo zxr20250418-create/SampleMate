@@ -18,7 +18,10 @@ struct SampleMateBackupDocument: FileDocument {
 
     init(configuration: ReadConfiguration) throws {
         let wrapper = configuration.file
-        data = wrapper?.regularFileContents ?? Data()
+        if wrapper.isDirectory {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        data = wrapper.regularFileContents ?? Data()
     }
 
     func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
