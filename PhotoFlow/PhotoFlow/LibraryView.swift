@@ -126,7 +126,7 @@ struct LibraryView: View {
                 handleExport(result: result)
             }
             .fileImporter(isPresented: $showBackupImporter,
-                          allowedContentTypes: [UTType.sampleMateBackup]) { result in
+                          allowedContentTypes: [UTType.sampleMateBackup, .data]) { result in
                 handleImport(result: result)
             }
             .overlay {
