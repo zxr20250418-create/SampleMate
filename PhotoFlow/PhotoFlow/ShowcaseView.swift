@@ -591,19 +591,21 @@ struct ShowcaseView: View {
 
     @ViewBuilder
     private func fullscreenBackgroundView(photo: DisplayPhoto?) -> some View {
-        switch bgStyle {
-        case .blur:
-            if let photo {
-                fullscreenBlurBackground(photo: photo)
-            } else {
+        Group {
+            switch bgStyle {
+            case .blur:
+                if let photo {
+                    fullscreenBlurBackground(photo: photo)
+                } else {
+                    Color.black
+                }
+            case .black:
                 Color.black
+            case .gray:
+                Color(white: 0.12)
+            case .charcoal:
+                Color(white: 0.06)
             }
-        case .black:
-            Color.black
-        case .gray:
-            Color(white: 0.12)
-        case .charcoal:
-            Color(white: 0.06)
         }
         .ignoresSafeArea()
     }
