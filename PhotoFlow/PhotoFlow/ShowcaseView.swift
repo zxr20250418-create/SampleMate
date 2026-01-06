@@ -59,6 +59,7 @@ struct ShowcaseView: View {
         case black
         case gray
         case charcoal
+        case paper
 
         var title: String {
             switch self {
@@ -70,6 +71,8 @@ struct ShowcaseView: View {
                 return "Gray"
             case .charcoal:
                 return "Charcoal"
+            case .paper:
+                return "纸白"
             }
         }
     }
@@ -123,6 +126,8 @@ struct ShowcaseView: View {
             ZStack {
                 if isFullscreen {
                     fullscreenBackgroundView(photo: displayPhotos[safe: photoIndex])
+                        .ignoresSafeArea()
+                        .allowsHitTesting(false)
                 } else {
                     Color(.systemGroupedBackground).ignoresSafeArea()
                 }
@@ -605,9 +610,10 @@ struct ShowcaseView: View {
                 Color(white: 0.12)
             case .charcoal:
                 Color(white: 0.06)
+            case .paper:
+                Color(white: 0.96)
             }
         }
-        .ignoresSafeArea()
     }
 
     @ViewBuilder
