@@ -126,8 +126,6 @@ struct ShowcaseView: View {
             ZStack {
                 if isFullscreen {
                     fullscreenBackgroundView(photo: displayPhotos[safe: photoIndex])
-                        .ignoresSafeArea()
-                        .allowsHitTesting(false)
                 } else {
                     Color(.systemGroupedBackground).ignoresSafeArea()
                 }
@@ -614,6 +612,8 @@ struct ShowcaseView: View {
                 Color(white: 0.96)
             }
         }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
     }
 
     @ViewBuilder
