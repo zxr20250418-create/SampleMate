@@ -536,6 +536,56 @@ final class LocalLibraryStore: ObservableObject {
         persistPresets()
     }
 
+    func makeBackupDocument() throws -> SampleMateBackupDocument {
+        let payload = BackupPayload(version: 1,
+                                    createdAt: Date(),
+                                    files: try backupFileEntries())
+        let data = try JSONEncoder().encode(payload)
+        return SampleMateBackupDocument(data: data)
+    }
+
+    @MainActor
+    func restore(from document: SampleMateBackupDocument) async throws {
+        guard !document.data.isEmpty else { return }
+        let payload = try JSONDecoder().decode(BackupPayload.self, from: document.data)
+        let rootURL = applicationSupportDirectory()
+        let tempURL = rootURL.appendingPathComponent("RestoreTemp-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: tempURL, withIntermediateDirectories: true)
+
+        var topLevel: Set<String> = []
+        for entry in payload.files {
+            let targetURL = tempURL.appendingPathComponent(entry.path)
+            try fileManager.createDirectory(at: targetURL.deletingLastPathComponent(),
+                                            withIntermediateDirectories: true)
+            try entry.data.write(to: targetURL, options: .atomic)
+            if let first = entry.path.split(separator: "/").first {
+                topLevel.insert(String(first))
+            }
+        }
+
+        for name in topLevel {
+            let tempItemURL = tempURL.appendingPathComponent(name)
+            let destURL = rootURL.appendingPathComponent(name)
+            if fileManager.fileExists(atPath: destURL.path) {
+                try fileManager.removeItem(at: destURL)
+            }
+            try fileManager.moveItem(at: tempItemURL, to: destURL)
+        }
+
+        try? fileManager.removeItem(at: tempURL)
+        await reloadAll()
+    }
+
+    @MainActor
+    func reloadAll() async {
+        await loadCatalog()
+        await loadSets()
+        await loadCategories()
+        await loadTags()
+        await loadSetTagLinks()
+        await loadPresets()
+    }
+
     func image(at path: String) -> UIImage? {
         UIImage(contentsOfFile: path)
     }
@@ -585,6 +635,38 @@ final class LocalLibraryStore: ObservableObject {
 
     private func presetsURL() -> URL {
         applicationSupportDirectory().appendingPathComponent(presetsFileName)
+    }
+
+    private struct BackupPayload: Codable {
+        let version: Int
+        let createdAt: Date
+        let files: [BackupFile]
+    }
+
+    private struct BackupFile: Codable {
+        let path: String
+        let data: Data
+    }
+
+    private func backupFileEntries() throws -> [BackupFile] {
+        let rootURL = applicationSupportDirectory()
+        let fileNames = [
+            catalogFileName,
+            setsFileName,
+            categoriesFileName,
+            tagsFileName,
+            setTagLinksFileName,
+            presetsFileName
+        ]
+        var entries: [BackupFile] = []
+        for name in fileNames {
+            let url = rootURL.appendingPathComponent(name)
+            guard fileManager.fileExists(atPath: url.path) else { continue }
+            let data = try Data(contentsOf: url)
+            entries.append(BackupFile(path: name, data: data))
+        }
+
+        return entries
     }
 
     private func loadCatalog() async {
