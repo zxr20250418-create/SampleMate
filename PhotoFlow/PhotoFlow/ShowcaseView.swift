@@ -9,6 +9,7 @@ struct ShowcaseView: View {
     @AppStorage("slideshowIntervalSeconds") private var slideshowIntervalSeconds: Int = 5
     @AppStorage("showcaseTagFilterMode") private var filterModeRaw: String = FilterMode.or.rawValue
     @AppStorage("showcaseTagFilterIds") private var selectedTagIdsRaw: String = ""
+    @AppStorage("showcaseFullscreenBackgroundStyle") private var bgStyleRaw: String = "blur"
 
     @State private var isFullscreen = false
     @State private var overlaysVisible = true
@@ -18,6 +19,7 @@ struct ShowcaseView: View {
     @State private var selectedTagIds: Set<String> = []
     @State private var showTagSheet = false
     @State private var showPresetSheet = false
+    @State private var showBgPickerSheet = false
     @State private var showPresetNamePrompt = false
     @State private var presetName: String = ""
     @State private var showRenamePresetPrompt = false
@@ -50,6 +52,26 @@ struct ShowcaseView: View {
     private enum FilterMode: String {
         case or
         case and
+    }
+
+    private enum FullscreenBackgroundStyle: String, CaseIterable {
+        case blur
+        case black
+        case gray
+        case charcoal
+
+        var title: String {
+            switch self {
+            case .blur:
+                return "Blur"
+            case .black:
+                return "Black"
+            case .gray:
+                return "Gray"
+            case .charcoal:
+                return "Charcoal"
+            }
+        }
     }
 
     var body: some View {
@@ -99,7 +121,11 @@ struct ShowcaseView: View {
             let shelfHeight: CGFloat = filmstripHeightFull + shelfPadding * 2
 
             ZStack {
-                Color(.systemGroupedBackground).ignoresSafeArea()
+                if isFullscreen {
+                    fullscreenBackgroundView(photo: displayPhotos[safe: photoIndex])
+                } else {
+                    Color(.systemGroupedBackground).ignoresSafeArea()
+                }
                 VStack(spacing: 16) {
                     if !isFullscreen {
                         headerBar(categoryName: categoryName,
@@ -205,6 +231,25 @@ struct ShowcaseView: View {
         }
         .sheet(isPresented: $showPresetSheet) {
             presetSheet
+        }
+        .sheet(isPresented: $showBgPickerSheet) {
+            List {
+                ForEach(FullscreenBackgroundStyle.allCases, id: \.self) { style in
+                    Button {
+                        bgStyleRaw = style.rawValue
+                        showBgPickerSheet = false
+                    } label: {
+                        HStack {
+                            Text(style.title)
+                            Spacer()
+                            if bgStyle == style {
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+            }
         }
         .alert("保存为预设", isPresented: $showPresetNamePrompt) {
             TextField("Name", text: $presetName)
@@ -448,12 +493,21 @@ struct ShowcaseView: View {
             Text("\(min(photoIndex + 1, photosCount))/\(max(photosCount, 1))")
                 .font(.system(size: 11, weight: .semibold, design: .rounded))
             Button {
-            userPressedPlayPause(photosCount: photosCount)
-        } label: {
-            Image(systemName: isSlideshowPlaying ? "pause.fill" : "play.fill")
-                .font(.system(size: 10, weight: .bold))
-                .padding(6)
-                .background(.white.opacity(0.9), in: Capsule())
+                userPressedPlayPause(photosCount: photosCount)
+            } label: {
+                Image(systemName: isSlideshowPlaying ? "pause.fill" : "play.fill")
+                    .font(.system(size: 10, weight: .bold))
+                    .padding(6)
+                    .background(.white.opacity(0.9), in: Capsule())
+            }
+            .buttonStyle(.plain)
+            Button {
+                showBgPickerSheet = true
+            } label: {
+                Image(systemName: "paintbrush")
+                    .font(.system(size: 10, weight: .bold))
+                    .padding(6)
+                    .background(.white.opacity(0.9), in: Capsule())
             }
             .buttonStyle(.plain)
         }
@@ -532,6 +586,50 @@ struct ShowcaseView: View {
             }
             .navigationTitle("Presets")
             .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+
+    @ViewBuilder
+    private func fullscreenBackgroundView(photo: DisplayPhoto?) -> some View {
+        switch bgStyle {
+        case .blur:
+            if let photo {
+                fullscreenBlurBackground(photo: photo)
+            } else {
+                Color.black
+            }
+        case .black:
+            Color.black
+        case .gray:
+            Color(white: 0.12)
+        case .charcoal:
+            Color(white: 0.06)
+        }
+        .ignoresSafeArea()
+    }
+
+    @ViewBuilder
+    private func fullscreenBlurBackground(photo: DisplayPhoto) -> some View {
+        switch photo.source {
+        case .local(let item):
+            if let image = store.image(at: item.photoPath) ?? store.thumbnail(at: item.thumbPath) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .blur(radius: 30)
+                    .brightness(-0.2)
+                    .saturation(0.9)
+                    .clipped()
+            } else {
+                Color.black
+            }
+        case .demo(let demo):
+            LinearGradient(colors: demo.colors, startPoint: .topLeading, endPoint: .bottomTrailing)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .blur(radius: 28)
+                .brightness(-0.2)
+                .saturation(0.9)
         }
     }
 
@@ -818,6 +916,10 @@ struct ShowcaseView: View {
 
     private var filterMode: FilterMode {
         FilterMode(rawValue: filterModeRaw) ?? .or
+    }
+
+    private var bgStyle: FullscreenBackgroundStyle {
+        FullscreenBackgroundStyle(rawValue: bgStyleRaw) ?? .blur
     }
 
     private func syncSelectedTagsFromStorage() {
