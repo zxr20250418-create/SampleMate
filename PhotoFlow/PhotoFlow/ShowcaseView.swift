@@ -5,6 +5,9 @@ struct ShowcaseView: View {
 
     @AppStorage("priceVisible") private var priceVisible: Bool = true
     @AppStorage("compactTextVisible") private var compactTextVisible: Bool = true
+    @AppStorage("compactBottomBoardModeRaw") private var compactBottomBoardModeRaw: String = "text"
+    @AppStorage("compactBottomBoardScale") private var compactBottomBoardScale: Double = 1.0
+    @AppStorage("compactBottomBoardImagePath") private var compactBottomBoardImagePath: String = ""
     @AppStorage("slideshowEnabled") private var slideshowEnabled: Bool = false
     @AppStorage("slideshowIntervalSeconds") private var slideshowIntervalSeconds: Int = 5
     @AppStorage("showcaseTagFilterMode") private var filterModeRaw: String = FilterMode.or.rawValue
@@ -52,6 +55,11 @@ struct ShowcaseView: View {
     private enum FilterMode: String {
         case or
         case and
+    }
+
+    private enum CompactBottomBoardMode: String {
+        case text
+        case image
     }
 
     private enum FullscreenBackgroundStyle: String, CaseIterable {
@@ -201,10 +209,7 @@ struct ShowcaseView: View {
                                     .fill(.ultraThinMaterial)
                                     .allowsHitTesting(false)
                             }
-                        if compactTextVisible {
-                            showcaseCard(note: setNote, priceText: priceText)
-                                .padding(.horizontal, 20)
-                        }
+                        compactBottomBoard(note: setNote, priceText: priceText)
                     } else {
                         Spacer(minLength: shelfHeight)
                     }
@@ -699,6 +704,40 @@ struct ShowcaseView: View {
             .padding(.horizontal, 12)
     }
 
+    @ViewBuilder
+    private func compactBottomBoard(note: String, priceText: String) -> some View {
+        switch compactBottomBoardMode {
+        case .text:
+            if compactTextVisible {
+                showcaseCard(note: note, priceText: priceText)
+                    .padding(.horizontal, 20)
+            } else {
+                EmptyView()
+            }
+        case .image:
+            compactBottomBoardImageView()
+                .padding(.horizontal, 20)
+        }
+    }
+
+    @ViewBuilder
+    private func compactBottomBoardImageView() -> some View {
+        if let image = compactBottomBoardImage() {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFit()
+                .scaleEffect(compactBottomBoardScale)
+                .frame(maxWidth: 600)
+                .frame(maxWidth: .infinity)
+        } else {
+            Text("未选择讲解板图片（去设置里选择）")
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+        }
+    }
+
     private func compactThumbnailRow(photos: [DisplayPhoto], height: CGFloat) -> some View {
         let indices = compactThumbnailIndices(count: photos.count)
         return HStack(spacing: 12) {
@@ -926,8 +965,19 @@ struct ShowcaseView: View {
         FilterMode(rawValue: filterModeRaw) ?? .or
     }
 
+    private var compactBottomBoardMode: CompactBottomBoardMode {
+        CompactBottomBoardMode(rawValue: compactBottomBoardModeRaw) ?? .text
+    }
+
     private var bgStyle: FullscreenBackgroundStyle {
         FullscreenBackgroundStyle(rawValue: bgStyleRaw) ?? .blur
+    }
+
+    private func compactBottomBoardImage() -> UIImage? {
+        guard !compactBottomBoardImagePath.isEmpty else { return nil }
+        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let url = dir.appendingPathComponent(compactBottomBoardImagePath)
+        return UIImage(contentsOfFile: url.path)
     }
 
     private func syncSelectedTagsFromStorage() {
