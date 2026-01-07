@@ -7,6 +7,7 @@ struct PR1SettingsView: View {
 
     @AppStorage("priceVisible") private var priceVisible = true
     @AppStorage("compactTextVisible") private var compactTextVisible = true
+    @AppStorage("showcasePageTransitionStyle") private var showcasePageTransitionStyle = "fade"
     @AppStorage("compactBottomBoardModeRaw") private var compactBottomBoardModeRaw = "text"
     @AppStorage("compactBottomBoardScale") private var compactBottomBoardScale: Double = 1.0
     @AppStorage("compactBottomBoardImagePath") private var compactBottomBoardImagePath = ""
@@ -20,6 +21,12 @@ struct PR1SettingsView: View {
             Form {
                 Toggle("Show price row", isOn: $priceVisible)
                 Toggle("Show compact text", isOn: $compactTextVisible)
+                Picker("手动切换过渡", selection: $showcasePageTransitionStyle) {
+                    Text("无").tag("none")
+                    Text("淡入").tag("fade")
+                    Text("淡入+微缩放").tag("fadeScale")
+                }
+                .pickerStyle(.segmented)
                 Picker("讲解板模式", selection: $compactBottomBoardModeRaw) {
                     Text("文字").tag("text")
                     Text("图片").tag("image")
