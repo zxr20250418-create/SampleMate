@@ -1004,7 +1004,7 @@ struct ShowcaseView: View {
         case .fade:
             return .opacity
         case .fadeScale:
-            return .opacity.combined(with: .scale(0.99))
+            return .opacity.combined(with: .scale(scale: 0.99))
         }
     }
 
