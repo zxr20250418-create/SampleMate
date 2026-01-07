@@ -5,6 +5,7 @@ struct ShowcaseView: View {
 
     @AppStorage("priceVisible") private var priceVisible: Bool = true
     @AppStorage("compactTextVisible") private var compactTextVisible: Bool = true
+    @AppStorage("showcasePageTransitionStyle") private var pageTransitionStyleRaw: String = "fade"
     @AppStorage("compactBottomBoardModeRaw") private var compactBottomBoardModeRaw: String = "text"
     @AppStorage("compactBottomBoardScale") private var compactBottomBoardScale: Double = 1.0
     @AppStorage("compactBottomBoardImagePath") private var compactBottomBoardImagePath: String = ""
@@ -34,6 +35,7 @@ struct ShowcaseView: View {
     @State private var slideshowTimer: Timer?
     @State private var overlayAutoHideTask: Task<Void, Never>?
     @State private var filmstripRequested = false
+    @State private var manualTransitionID = UUID()
     @GestureState private var isHorizontalPaging = false
 
     @Environment(\.scenePhase) private var scenePhase
@@ -55,6 +57,12 @@ struct ShowcaseView: View {
     private enum FilterMode: String {
         case or
         case and
+    }
+
+    private enum PageTransitionStyle: String {
+        case none
+        case fade
+        case fadeScale
     }
 
     private enum CompactBottomBoardMode: String {
@@ -148,16 +156,22 @@ struct ShowcaseView: View {
 
                     ZStack(alignment: .center) {
                         Group {
-                            if categoryEmpty {
-                                categoryEmptyView(height: mainHeight)
-                            } else if let photo = displayPhotos[safe: photoIndex] {
-                                mainPhotoView(photo: photo, height: mainHeight, isFullscreen: isFullscreen)
-                            } else {
-                                fallbackMainPhoto(height: mainHeight, isFullscreen: isFullscreen)
+                            Group {
+                                if categoryEmpty {
+                                    categoryEmptyView(height: mainHeight)
+                                } else if let photo = displayPhotos[safe: photoIndex] {
+                                    mainPhotoView(photo: photo, height: mainHeight, isFullscreen: isFullscreen)
+                                } else {
+                                    fallbackMainPhoto(height: mainHeight, isFullscreen: isFullscreen)
+                                }
                             }
+                            .id(activePhotoID)
+                            .transition(isSlideshowPlaying ? .opacity : .identity)
+                            .animation(isFullscreen && isSlideshowPlaying ? .easeInOut(duration: 0.18) : nil,
+                                       value: activePhotoID)
                         }
-                        .id(activePhotoID)
-                        .transition(.opacity)
+                        .id(manualTransitionID)
+                        .transition(manualTransition)
                         .contentShape(Rectangle())
                         .highPriorityGesture(dragGesture())
                         .simultaneousGesture(pinchGesture())
@@ -173,7 +187,7 @@ struct ShowcaseView: View {
                                 else { cancelOverlayAutoHide() }
                             }
                         })
-                        .animation(isFullscreen ? .easeInOut(duration: 0.18) : nil, value: activePhotoID)
+                        .animation(isFullscreen ? .easeInOut(duration: 0.20) : nil, value: manualTransitionID)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.horizontal, 20)
@@ -828,11 +842,25 @@ struct ShowcaseView: View {
             .onEnded { v in
                 let dx = v.translation.width, dy = v.translation.height
                 if abs(dx) > abs(dy) {
-                    if dx <= -60 { stopSlideshowOnly(); nextSet(1) }
-                    else if dx >= 60 { stopSlideshowOnly(); nextSet(-1) }
+                    if dx <= -60 {
+                        stopSlideshowOnly()
+                        manualTransitionID = UUID()
+                        nextSet(1)
+                    } else if dx >= 60 {
+                        stopSlideshowOnly()
+                        manualTransitionID = UUID()
+                        nextSet(-1)
+                    }
                 } else {
-                    if dy <= -60 { stopSlideshowOnly(); nextCategory(1) }
-                    else if dy >= 60 { stopSlideshowOnly(); nextCategory(-1) }
+                    if dy <= -60 {
+                        stopSlideshowOnly()
+                        manualTransitionID = UUID()
+                        nextCategory(1)
+                    } else if dy >= 60 {
+                        stopSlideshowOnly()
+                        manualTransitionID = UUID()
+                        nextCategory(-1)
+                    }
                 }
             }
     }
@@ -963,6 +991,21 @@ struct ShowcaseView: View {
 
     private var filterMode: FilterMode {
         FilterMode(rawValue: filterModeRaw) ?? .or
+    }
+
+    private var pageTransitionStyle: PageTransitionStyle {
+        PageTransitionStyle(rawValue: pageTransitionStyleRaw) ?? .fade
+    }
+
+    private var manualTransition: AnyTransition {
+        switch pageTransitionStyle {
+        case .none:
+            return .identity
+        case .fade:
+            return .opacity
+        case .fadeScale:
+            return .opacity.combined(with: .scale(scale: 0.99))
+        }
     }
 
     private var compactBottomBoardMode: CompactBottomBoardMode {
